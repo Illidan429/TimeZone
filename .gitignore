@@ -1,0 +1,27 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & local
+*.log
+.cache/
+
+# Node (预留)
+node_modules/
+dist/
+.next/
+.nuxt/
+.output/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Misc
+*.local
