@@ -32,6 +32,8 @@
 - 例如：**OBS 用虚拟键盘** 等独立工具。  
 - 形态可以是：本站「工具」页只做 **说明 + 链接** 到独立部署地址，或 **嵌入** / **同域子路径** 部署（与备案、HTTPS 策略一致即可）。
 
+**已有工程（另仓，进行中）**：[`TimeZone-Virtual-Keyboard` @ `feat/agent-packaging-and-oneclick-start`](https://github.com/jiaxuli960429-dotcom/TimeZone-Virtual-Keyboard/tree/feat/agent-packaging-and-oneclick-start)（云端后端、本地 Agent、叠加页与打包脚本等，约一半进度）。汇总见 [related-repositories.md](related-repositories.md)。
+
 ## 非目标（现阶段）
 
 - 不承诺与 Laplace 功能一一对齐；以主播与维护者真实需求为准。
