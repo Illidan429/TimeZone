@@ -27,6 +27,24 @@
 | [规划与开发进度](docs/planning-and-progress.md) | 当前焦点、里程碑、按日期的进度更新 |
 | [关联仓库与分支](docs/related-repositories.md) | 虚拟键盘 / Agent 等独立工程链接 |
 
+## 前端骨架（第一期最小上线版）
+
+- 目录：`web/`
+- 入口页：`web/index.html`
+- 子页：`web/pages/archive.html`、`web/pages/music.html`、`web/pages/tools.html`、`web/pages/news.html`
+- 样式：`web/styles/base.css` + `web/styles/themes/default.css`
+- 脚本：`web/scripts/main.js`
+
+### 本地预览
+
+在仓库根目录执行：
+
+```bash
+python -m http.server 8000
+```
+
+然后访问：`http://localhost:8000/web/`
+
 ## 文档维护约定
 
 **不需要**所有文档都做成「按日期一条条追加」。可以分成两类：

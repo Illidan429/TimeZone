@@ -1,0 +1,129 @@
+﻿:root {
+  --bg: #0d1020;
+  --panel: #181d36;
+  --panel-soft: #222848;
+  --text: #f7f8ff;
+  --text-muted: #b7bedf;
+  --primary: #7a8dff;
+  --accent: #69d7ff;
+  --ring: rgba(122, 141, 255, 0.45);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at 10% 10%, #1a2142 0%, var(--bg) 55%);
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.nav a {
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.hero,
+.page {
+  width: min(960px, 100% - 2rem);
+  margin: 1rem auto 3rem;
+}
+
+.hero-card,
+.page-card {
+  background: linear-gradient(160deg, var(--panel) 0%, var(--panel-soft) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 1.5rem;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+}
+
+h1,
+h2 {
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.lead,
+.muted {
+  color: var(--text-muted);
+}
+
+.bubble-grid {
+  margin-top: 1.2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 1rem;
+}
+
+.bubble {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 78px;
+  border-radius: 999px;
+  background: linear-gradient(130deg, rgba(122, 141, 255, 0.35), rgba(105, 215, 255, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-weight: 700;
+}
+
+.bubble:focus-visible,
+.nav a:focus-visible,
+.back-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.page-list {
+  margin: 1rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.page-list li {
+  margin-bottom: 0.5rem;
+}
+
+.back-link {
+  display: inline-block;
+  margin-top: 1.2rem;
+  color: var(--accent);
+}
+
+.footer {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 1.2rem;
+}

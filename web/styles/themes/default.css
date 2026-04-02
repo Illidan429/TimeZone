@@ -1,0 +1,14 @@
+﻿/*
+  默认主题：后续可复制本文件制作 festival-*.css
+  并在页面中替换 link href 即可快速换皮。
+*/
+:root {
+  --bg: #0d1020;
+  --panel: #181d36;
+  --panel-soft: #222848;
+  --text: #f7f8ff;
+  --text-muted: #b7bedf;
+  --primary: #7a8dff;
+  --accent: #69d7ff;
+  --ring: rgba(122, 141, 255, 0.45);
+}
