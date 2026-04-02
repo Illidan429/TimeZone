@@ -39,3 +39,4 @@
 - 录播预览方式固定：仅支持在仓库根目录启动 `python -m http.server 8000` 并访问 `http://localhost:8000/web/pages/archive.html`；`file://` 方式明确提示不支持。
 - 录播流程升级为两段式：支持手动维护 `vod-events.json`，并新增 `tools/build_vod_events.py` + `vod-input.json` 自动解析（单条 BV 与系列页尝试）生成事件数据。
 - 录播页新增可视化编辑模式：可开启编辑、双击条目修改标题和链接、双击某天新增条目，并支持一键导出 `vod-events.json`。
+- 录播解析规则升级：自动从 B 站标题中提取「直播日期 + 直播标题」，日历日期改为直播日期（非上传日期），标题去除“直播回放”与时间后缀。

@@ -29,15 +29,40 @@ def normalize_date(ts: int | float | None) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).astimezone().strftime("%Y-%m-%d")
 
 
+def parse_live_meta_from_title(raw_title: str) -> tuple[str | None, str]:
+    title = (raw_title or "").strip()
+    title = re.sub(r"^【\s*直播回放\s*】\s*", "", title)
+    title = re.sub(r"\s+", " ", title).strip()
+
+    # 形如：2026年04月01日16点场 / 2026年4月1日6点场
+    m = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日\d{1,2}点场", title)
+    live_date = None
+    if m:
+        yyyy, mm, dd = m.groups()
+        live_date = f"{yyyy}-{int(mm):02d}-{int(dd):02d}"
+        title = title[: m.start()].strip()
+
+    return live_date, title or raw_title or ""
+
+
+def to_event(title: str, pub_ts: int | float | None, url: str) -> dict:
+    live_date, live_title = parse_live_meta_from_title(title)
+    return {
+        "date": live_date or normalize_date(pub_ts),
+        "title": live_title,
+        "url": url,
+    }
+
+
 def build_from_bvid(bvid: str) -> dict:
     api = f"https://api.bilibili.com/x/web-interface/view?bvid={bvid}"
     payload = http_get_json(api)
     data = payload.get("data") or {}
-    return {
-        "date": normalize_date(data.get("pubdate")),
-        "title": data.get("title") or f"直播回放（{bvid}）",
-        "url": f"https://www.bilibili.com/video/{bvid}/",
-    }
+    return to_event(
+        title=data.get("title") or f"直播回放（{bvid}）",
+        pub_ts=data.get("pubdate"),
+        url=f"https://www.bilibili.com/video/{bvid}/",
+    )
 
 
 def build_from_series(mid: int, series_id: int, max_pages: int) -> list[dict]:
@@ -58,11 +83,11 @@ def build_from_series(mid: int, series_id: int, max_pages: int) -> list[dict]:
             if not bvid:
                 continue
             events.append(
-                {
-                    "date": normalize_date(item.get("pubdate")),
-                    "title": item.get("title") or f"直播回放（{bvid}）",
-                    "url": f"https://www.bilibili.com/video/{bvid}/",
-                }
+                to_event(
+                    title=item.get("title") or f"直播回放（{bvid}）",
+                    pub_ts=item.get("pubdate"),
+                    url=f"https://www.bilibili.com/video/{bvid}/",
+                )
             )
     return events
 
