@@ -62,6 +62,13 @@ python tools/build_vod_events.py
 
 生成结果会写回 `web/data/vod-events.json`（录播页直接读取这个文件）。
 
+### 录播页管理员口令（轻量）
+
+- 配置文件：`web/data/admin-config.json`
+- 字段：`archiveEditPasscode`
+- 作用：录播页可视化编辑与导出 JSON 需先管理员登录
+- 注意：当前是前端口令，仅用于日常误操作防护，不是强安全方案
+
 ## 文档维护约定
 
 **不需要**所有文档都做成「按日期一条条追加」。可以分成两类：
