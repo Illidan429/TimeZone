@@ -316,6 +316,10 @@ h2 {
   font-size: 0.93rem;
 }
 
+.error-text {
+  color: #ffb3b3;
+}
+
 .footer {
   text-align: center;
   color: var(--text-muted);

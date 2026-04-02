@@ -10,18 +10,27 @@
   };
   if (titleMap[page]) document.title = titleMap[page];
 
-  // 首期先用本地数组维护录播事件，后续可替换为接口数据。
-  const VOD_EVENTS = [
-    { date: "2026-04-02", title: "直播回放：四月开场", url: "https://www.bilibili.com" },
-    { date: "2026-04-06", title: "直播回放：聊天局", url: "https://www.bilibili.com" },
-    { date: "2026-04-11", title: "直播回放：歌会夜", url: "https://www.bilibili.com" },
-    { date: "2026-04-18", title: "直播回放：外星人特别篇", url: "https://www.bilibili.com" }
-  ];
-
   if (page === "archive") {
-    setupArchiveCalendar(VOD_EVENTS);
+    initArchivePage();
   }
 })();
+
+async function initArchivePage() {
+  const statusEl = document.getElementById("calendar-status");
+  try {
+    const resp = await fetch("../data/vod-events.json", { cache: "no-store" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const events = await resp.json();
+    if (statusEl) statusEl.textContent = "已从数据文件载入录播信息。";
+    setupArchiveCalendar(Array.isArray(events) ? events : []);
+  } catch (err) {
+    if (statusEl) {
+      statusEl.textContent = "录播数据读取失败，请检查 web/data/vod-events.json。";
+      statusEl.classList.add("error-text");
+    }
+    setupArchiveCalendar([]);
+  }
+}
 
 function setupArchiveCalendar(events) {
   const calendarEl = document.getElementById("vod-calendar");
