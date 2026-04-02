@@ -17,10 +17,6 @@
 
 async function initArchivePage() {
   const statusEl = document.getElementById("calendar-status");
-  const fallbackEvents = [
-    { date: "2026-04-02", title: "直播回放：四月开场", url: "https://www.bilibili.com" },
-    { date: "2026-04-06", title: "直播回放：聊天局", url: "https://www.bilibili.com" }
-  ];
   try {
     const dataUrl = new URL("../data/vod-events.json", window.location.href).toString();
     const resp = await fetch(dataUrl, { cache: "no-store" });
@@ -30,10 +26,10 @@ async function initArchivePage() {
     setupArchiveCalendar(Array.isArray(events) ? events : []);
   } catch (err) {
     if (statusEl) {
-      statusEl.textContent = "录播数据读取失败，已使用内置示例数据。请用 `python -m http.server 8000` 方式预览并检查 web/data/vod-events.json。";
+      statusEl.textContent = "录播数据读取失败。请用 `python -m http.server 8000` 方式预览，并检查 web/data/vod-events.json。";
       statusEl.classList.add("error-text");
     }
-    setupArchiveCalendar(fallbackEvents);
+    setupArchiveCalendar([]);
   }
 }
 
