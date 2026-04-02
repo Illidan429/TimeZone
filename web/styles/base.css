@@ -248,6 +248,11 @@ h2 {
   cursor: pointer;
 }
 
+.calendar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .calendar-weekdays {
   margin-top: 1rem;
   display: grid;

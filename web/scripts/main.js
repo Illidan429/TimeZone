@@ -56,6 +56,12 @@ function setupArchiveCalendar(events) {
 
   let editMode = false;
   const sourceEvents = Array.isArray(events) ? [...events] : [];
+  const sortedDates = sourceEvents
+    .map((item) => item.date)
+    .filter(Boolean)
+    .sort();
+  const minDate = sortedDates.length ? new Date(`${sortedDates[0]}T00:00:00`) : null;
+  const maxDate = sortedDates.length ? new Date(`${sortedDates[sortedDates.length - 1]}T00:00:00`) : null;
 
   function buildByDate() {
     const byDate = new Map();
@@ -78,6 +84,19 @@ function setupArchiveCalendar(events) {
     const cells = [];
 
     titleEl.textContent = `${viewYear}年${String(viewMonth + 1).padStart(2, "0")}月`;
+    const currentMonthStart = new Date(viewYear, viewMonth, 1);
+    if (minDate) {
+      const minMonthStart = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+      prevBtn.disabled = currentMonthStart <= minMonthStart;
+    } else {
+      prevBtn.disabled = true;
+    }
+    if (maxDate) {
+      const maxMonthStart = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+      nextBtn.disabled = currentMonthStart >= maxMonthStart;
+    } else {
+      nextBtn.disabled = true;
+    }
 
     for (let i = 0; i < startWeekday; i += 1) {
       cells.push('<div class="cal-cell cal-empty"></div>');
@@ -144,6 +163,7 @@ function setupArchiveCalendar(events) {
   });
 
   prevBtn.addEventListener("click", () => {
+    if (prevBtn.disabled) return;
     viewMonth -= 1;
     if (viewMonth < 0) {
       viewMonth = 11;
@@ -153,6 +173,7 @@ function setupArchiveCalendar(events) {
   });
 
   nextBtn.addEventListener("click", () => {
+    if (nextBtn.disabled) return;
     viewMonth += 1;
     if (viewMonth > 11) {
       viewMonth = 0;

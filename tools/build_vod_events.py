@@ -165,7 +165,7 @@ def main() -> int:
                 if not mid or not series_id:
                     print(f"[WARN] 未识别系列页参数，跳过: {raw}")
                     continue
-                pages = int(item.get("pages", 30))
+                pages = int(item.get("pages", 200))
                 all_events.extend(build_from_series(mid=mid, series_id=series_id, max_pages=pages))
             else:
                 print(f"[WARN] 未知 mode，跳过: {mode}")
