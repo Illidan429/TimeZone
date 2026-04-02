@@ -112,10 +112,79 @@ h2 {
   color: var(--text-muted);
 }
 
-.bubble-grid {
+.hero-layout {
   margin-top: 1.2rem;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: 1fr 1.2fr;
+  gap: 1.1rem;
+  align-items: center;
+}
+
+.hero-visual {
+  min-height: 220px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(circle at 60% 35%, rgba(122, 141, 255, 0.5) 0%, rgba(122, 141, 255, 0) 45%),
+    radial-gradient(circle at 20% 80%, rgba(76, 231, 180, 0.35) 0%, rgba(76, 231, 180, 0) 45%),
+    rgba(12, 16, 34, 0.8);
+  position: relative;
+  overflow: hidden;
+}
+
+.planet-core {
+  position: absolute;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  right: 24%;
+  top: 30%;
+  background: radial-gradient(circle at 30% 30%, #9ce7ff 0%, #6f8cff 40%, #4f5fd6 100%);
+  box-shadow: 0 0 30px rgba(111, 140, 255, 0.45);
+  animation: float-planet 4.8s ease-in-out infinite;
+}
+
+.planet-ring {
+  position: absolute;
+  width: 126px;
+  height: 30px;
+  border-radius: 999px;
+  border: 2px solid rgba(159, 231, 255, 0.6);
+  right: 19%;
+  top: 45%;
+  transform: rotate(-14deg);
+  opacity: 0.8;
+}
+
+.star {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.star-1 {
+  top: 24%;
+  left: 18%;
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+
+.star-2 {
+  top: 68%;
+  left: 28%;
+  animation: twinkle 2.8s ease-in-out infinite;
+}
+
+.star-3 {
+  top: 42%;
+  left: 72%;
+  animation: twinkle 2.1s ease-in-out infinite;
+}
+
+.bubble-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
   gap: 1rem;
 }
 
@@ -172,6 +241,28 @@ h2 {
   padding: 1.2rem;
 }
 
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes float-planet {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
 @media (max-width: 680px) {
   .topbar {
     align-items: flex-start;
@@ -185,6 +276,18 @@ h2 {
   .hero-card,
   .page-card {
     padding: 1.1rem;
+  }
+
+  .hero-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-visual {
+    min-height: 170px;
+  }
+
+  .bubble-grid {
+    grid-template-columns: repeat(2, minmax(110px, 1fr));
   }
 
   .bubble {
