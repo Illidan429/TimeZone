@@ -17,16 +17,34 @@
 
 async function initArchivePage() {
   const statusEl = document.getElementById("calendar-status");
+  const candidateUrls = [
+    new URL("../data/vod-events.json", window.location.href).toString(),
+    new URL("/web/data/vod-events.json", window.location.origin).toString(),
+    new URL("/data/vod-events.json", window.location.origin).toString()
+  ];
+
   try {
-    const dataUrl = new URL("../data/vod-events.json", window.location.href).toString();
-    const resp = await fetch(dataUrl, { cache: "no-store" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const events = await resp.json();
+    let events = null;
+    for (const url of candidateUrls) {
+      try {
+        const resp = await fetch(url, { cache: "no-store" });
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        if (Array.isArray(data)) {
+          events = data;
+          break;
+        }
+      } catch (_err) {
+        // Try next candidate URL.
+      }
+    }
+    if (!events) throw new Error("No valid data source");
+
     if (statusEl) statusEl.textContent = "已从数据文件载入录播信息。";
-    setupArchiveCalendar(Array.isArray(events) ? events : []);
+    setupArchiveCalendar(events);
   } catch (err) {
     if (statusEl) {
-      statusEl.textContent = "录播数据读取失败。请用 `python -m http.server 8000` 方式预览，并检查 web/data/vod-events.json。";
+      statusEl.textContent = "录播数据读取失败。请确认你通过本地服务访问，并检查 web/data/vod-events.json。";
       statusEl.classList.add("error-text");
     }
     setupArchiveCalendar([]);
