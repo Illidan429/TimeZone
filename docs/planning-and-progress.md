@@ -36,3 +36,4 @@
 - 录播数据解耦：新增 `web/data/vod-events.json`，录播页改为读取 JSON 渲染日历；读取失败时显示友好提示。
 - 录播读取容错增强：JSON 读取失败时自动回退示例数据，并在页面提示使用 `python -m http.server 8000` 进行本地预览。
 - 录播容错策略调整：取消示例数据回退，读取失败时仅显示错误提示并渲染空日历，避免影响真实效果判断。
+- 录播预览方式固定：仅支持在仓库根目录启动 `python -m http.server 8000` 并访问 `http://localhost:8000/web/pages/archive.html`；`file://` 方式明确提示不支持。

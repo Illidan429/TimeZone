@@ -37,13 +37,19 @@
 
 ### 本地预览
 
-在仓库根目录执行：
+唯一推荐方式（固定目录）：
 
 ```bash
 python -m http.server 8000
 ```
 
-然后访问：`http://localhost:8000/web/`
+然后访问：
+
+- 首页：`http://localhost:8000/web/`
+- 录播页：`http://localhost:8000/web/pages/archive.html`
+- 录播数据：`http://localhost:8000/web/data/vod-events.json`
+
+> 不支持 `file://` 直接双击打开页面（会导致录播 JSON 无法读取）。
 
 ## 文档维护约定
 
