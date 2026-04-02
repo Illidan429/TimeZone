@@ -50,19 +50,28 @@ function setupArchiveCalendar(events) {
   const titleEl = document.getElementById("calendar-title");
   const prevBtn = document.getElementById("calendar-prev");
   const nextBtn = document.getElementById("calendar-next");
-  if (!calendarEl || !titleEl || !prevBtn || !nextBtn) return;
+  const editToggleBtn = document.getElementById("calendar-edit-toggle");
+  const exportBtn = document.getElementById("calendar-export");
+  if (!calendarEl || !titleEl || !prevBtn || !nextBtn || !editToggleBtn || !exportBtn) return;
 
-  const byDate = new Map();
-  events.forEach((item) => {
-    if (!byDate.has(item.date)) byDate.set(item.date, []);
-    byDate.get(item.date).push(item);
-  });
+  let editMode = false;
+  const sourceEvents = Array.isArray(events) ? [...events] : [];
+
+  function buildByDate() {
+    const byDate = new Map();
+    sourceEvents.forEach((item) => {
+      if (!byDate.has(item.date)) byDate.set(item.date, []);
+      byDate.get(item.date).push(item);
+    });
+    return byDate;
+  }
 
   const today = new Date();
   let viewYear = today.getFullYear();
   let viewMonth = today.getMonth();
 
   function render() {
+    const byDate = buildByDate();
     const firstDay = new Date(viewYear, viewMonth, 1);
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     const startWeekday = firstDay.getDay();
@@ -78,11 +87,11 @@ function setupArchiveCalendar(events) {
       const dateKey = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       const list = byDate.get(dateKey) || [];
       const itemsHtml = list
-        .map((item) => `<a class="vod-item" href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>`)
+        .map((item, idx) => `<a class="vod-item ${editMode ? "editable" : ""}" data-date="${dateKey}" data-idx="${idx}" href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>`)
         .join("");
 
       cells.push(`
-        <div class="cal-cell">
+        <div class="cal-cell ${editMode ? "editable" : ""}" data-date="${dateKey}">
           <div class="cal-day">${day}</div>
           <div class="cal-items">${itemsHtml || '<span class="cal-none">-</span>'}</div>
         </div>
@@ -91,6 +100,48 @@ function setupArchiveCalendar(events) {
 
     calendarEl.innerHTML = cells.join("");
   }
+
+  function upsertEvent(date, indexInDay, next) {
+    const indices = [];
+    sourceEvents.forEach((e, i) => {
+      if (e.date === date) indices.push(i);
+    });
+    const targetIndex = indices[indexInDay];
+    if (typeof targetIndex === "number") {
+      sourceEvents[targetIndex] = { ...sourceEvents[targetIndex], ...next };
+    } else {
+      sourceEvents.push({ date, ...next });
+    }
+  }
+
+  calendarEl.addEventListener("dblclick", (ev) => {
+    if (!editMode) return;
+    const itemEl = ev.target.closest(".vod-item");
+    if (itemEl) {
+      ev.preventDefault();
+      const date = itemEl.dataset.date;
+      const idx = Number(itemEl.dataset.idx || "0");
+      const oldTitle = itemEl.textContent || "";
+      const oldUrl = itemEl.getAttribute("href") || "";
+      const nextTitle = window.prompt("修改标题：", oldTitle);
+      if (!nextTitle) return;
+      const nextUrl = window.prompt("修改链接：", oldUrl);
+      if (!nextUrl) return;
+      upsertEvent(date, idx, { title: nextTitle.trim(), url: nextUrl.trim() });
+      render();
+      return;
+    }
+
+    const cellEl = ev.target.closest(".cal-cell[data-date]");
+    if (!cellEl) return;
+    const date = cellEl.dataset.date;
+    const addTitle = window.prompt(`为 ${date} 新增条目，输入标题：`);
+    if (!addTitle) return;
+    const addUrl = window.prompt("输入链接：", "https://www.bilibili.com/video/");
+    if (!addUrl) return;
+    upsertEvent(date, Number.MAX_SAFE_INTEGER, { title: addTitle.trim(), url: addUrl.trim() });
+    render();
+  });
 
   prevBtn.addEventListener("click", () => {
     viewMonth -= 1;
@@ -108,6 +159,25 @@ function setupArchiveCalendar(events) {
       viewYear += 1;
     }
     render();
+  });
+
+  editToggleBtn.addEventListener("click", () => {
+    editMode = !editMode;
+    editToggleBtn.textContent = editMode ? "关闭编辑" : "开启编辑";
+    render();
+  });
+
+  exportBtn.addEventListener("click", () => {
+    const clean = sourceEvents
+      .filter((item) => item.date && item.title && item.url)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const blob = new Blob([`${JSON.stringify(clean, null, 2)}\n`], { type: "application/json;charset=utf-8" });
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = "vod-events.json";
+    a.click();
+    URL.revokeObjectURL(href);
   });
 
   render();

@@ -14,9 +14,15 @@
       <p class="muted">按日历查看回放日期。点当天条目可跳转 B 站。后续可升级为自动抓取。</p>
 
       <div class="calendar-toolbar">
-        <button class="calendar-btn" id="calendar-prev" type="button" aria-label="查看上个月">上个月</button>
-        <strong id="calendar-title">0000年00月</strong>
-        <button class="calendar-btn" id="calendar-next" type="button" aria-label="查看下个月">下个月</button>
+        <div class="calendar-toolbar-left">
+          <button class="calendar-btn" id="calendar-prev" type="button" aria-label="查看上个月">上个月</button>
+          <strong id="calendar-title">0000年00月</strong>
+          <button class="calendar-btn" id="calendar-next" type="button" aria-label="查看下个月">下个月</button>
+        </div>
+        <div class="calendar-toolbar-right">
+          <button class="calendar-btn" id="calendar-edit-toggle" type="button">开启编辑</button>
+          <button class="calendar-btn" id="calendar-export" type="button">导出 JSON</button>
+        </div>
       </div>
 
       <div class="calendar-weekdays" aria-hidden="true">
@@ -25,6 +31,7 @@
       <div class="vod-calendar" id="vod-calendar" aria-label="录播日历"></div>
 
       <p class="hint">维护说明：可直接编辑 `web/data/vod-events.json`，或编辑 `web/data/vod-input.json` 后运行 `python tools/build_vod_events.py` 自动生成。</p>
+      <p class="hint">可视化编辑：开启编辑后，双击已有条目可改标题和链接；双击某一天空白处可新增条目；点击「导出 JSON」下载最新数据。</p>
       <p class="hint" id="calendar-status" aria-live="polite">正在载入录播数据...</p>
       <a class="back-link" href="../index.html">返回首页</a>
     </section>

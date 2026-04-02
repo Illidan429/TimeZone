@@ -228,7 +228,15 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.8rem;
+}
+
+.calendar-toolbar-left,
+.calendar-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .calendar-btn {
@@ -280,6 +288,14 @@ h2 {
   margin-bottom: 0.35rem;
 }
 
+.cal-cell.editable {
+  cursor: pointer;
+}
+
+.cal-cell.editable:hover {
+  border-color: rgba(105, 215, 255, 0.38);
+}
+
 .cal-items {
   display: grid;
   gap: 0.3rem;
@@ -297,6 +313,10 @@ h2 {
 
 .vod-item:hover {
   background: rgba(122, 141, 255, 0.35);
+}
+
+.vod-item.editable {
+  outline: 1px dashed rgba(105, 215, 255, 0.4);
 }
 
 .cal-none {
