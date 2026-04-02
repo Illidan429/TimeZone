@@ -37,3 +37,4 @@
 - 录播读取容错增强：JSON 读取失败时自动回退示例数据，并在页面提示使用 `python -m http.server 8000` 进行本地预览。
 - 录播容错策略调整：取消示例数据回退，读取失败时仅显示错误提示并渲染空日历，避免影响真实效果判断。
 - 录播预览方式固定：仅支持在仓库根目录启动 `python -m http.server 8000` 并访问 `http://localhost:8000/web/pages/archive.html`；`file://` 方式明确提示不支持。
+- 录播流程升级为两段式：支持手动维护 `vod-events.json`，并新增 `tools/build_vod_events.py` + `vod-input.json` 自动解析（单条 BV 与系列页尝试）生成事件数据。

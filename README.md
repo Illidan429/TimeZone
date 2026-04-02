@@ -51,6 +51,17 @@ python -m http.server 8000
 
 > 不支持 `file://` 直接双击打开页面（会导致录播 JSON 无法读取）。
 
+### 录播数据（两段式）
+
+1. **JSON 手动添加**：直接编辑 `web/data/vod-events.json`。  
+2. **自动解析生成**：编辑 `web/data/vod-input.json`，然后执行：
+
+```bash
+python tools/build_vod_events.py
+```
+
+生成结果会写回 `web/data/vod-events.json`（录播页直接读取这个文件）。
+
 ## 文档维护约定
 
 **不需要**所有文档都做成「按日期一条条追加」。可以分成两类：
