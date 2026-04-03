@@ -15,6 +15,31 @@
   }
 })();
 
+const TZ_ARCHIVE_ADMIN_KEY = "tz_archive_admin";
+
+/** 仅当 URL 含 ?manage=1 时弹出口令；成功后去掉参数。返回当前标签页是否具备维护会话。 */
+function tryArchiveManageEntry(adminConfig) {
+  const url = new URL(window.location.href);
+  const wantsManage = url.searchParams.get("manage") === "1";
+  const pass =
+    (adminConfig && typeof adminConfig.archiveEditPasscode === "string" && adminConfig.archiveEditPasscode) ||
+    "timezone-admin-please-change";
+  if (wantsManage) {
+    const hadSession = sessionStorage.getItem(TZ_ARCHIVE_ADMIN_KEY) === "1";
+    if (!hadSession) {
+      const input = window.prompt("请输入维护口令：");
+      if (input && input === pass) {
+        sessionStorage.setItem(TZ_ARCHIVE_ADMIN_KEY, "1");
+      }
+    }
+    url.searchParams.delete("manage");
+    const qs = url.searchParams.toString();
+    const next = url.pathname + (qs ? `?${qs}` : "") + url.hash;
+    window.history.replaceState(null, "", next);
+  }
+  return sessionStorage.getItem(TZ_ARCHIVE_ADMIN_KEY) === "1";
+}
+
 async function initArchivePage() {
   const statusEl = document.getElementById("calendar-status");
   let adminConfig = { archiveEditPasscode: "timezone-admin-please-change" };
@@ -24,7 +49,7 @@ async function initArchivePage() {
       statusEl.textContent = "不支持 file:// 直接打开。请在仓库根目录执行 `python -m http.server 8000`，然后访问 http://localhost:8000/web/pages/archive.html。";
       statusEl.classList.add("error-text");
     }
-    setupArchiveCalendar([], adminConfig);
+    setupArchiveCalendar([], adminConfig, { showAdminChrome: false });
     return;
   }
 
@@ -48,44 +73,51 @@ async function initArchivePage() {
     const events = await resp.json();
     if (!Array.isArray(events)) throw new Error("Invalid data format");
 
+    const showAdminChrome = tryArchiveManageEntry(adminConfig);
     if (statusEl) statusEl.textContent = "已从数据文件载入录播信息。";
-    setupArchiveCalendar(Array.isArray(events) ? events : [], adminConfig);
+    setupArchiveCalendar(Array.isArray(events) ? events : [], adminConfig, { showAdminChrome });
   } catch (err) {
+    const showAdminChrome = tryArchiveManageEntry(adminConfig);
     if (statusEl) {
       statusEl.textContent = "录播数据读取失败。请固定使用仓库根目录服务：`python -m http.server 8000`，并检查 http://localhost:8000/web/data/vod-events.json 是否可访问。";
       statusEl.classList.add("error-text");
     }
-    setupArchiveCalendar([], adminConfig);
+    setupArchiveCalendar([], adminConfig, { showAdminChrome });
   }
 }
 
-function setupArchiveCalendar(events, adminConfig) {
+function setupArchiveCalendar(events, adminConfig, options = {}) {
+  const showAdminChrome = Boolean(options.showAdminChrome);
   const calendarEl = document.getElementById("vod-calendar");
   const titleEl = document.getElementById("calendar-title");
   const prevBtn = document.getElementById("calendar-prev");
   const nextBtn = document.getElementById("calendar-next");
-  const editToggleBtn = document.getElementById("calendar-edit-toggle");
-  const exportBtn = document.getElementById("calendar-export");
-  const adminStateEl = document.getElementById("calendar-admin-state");
-  const loginBtn = document.getElementById("calendar-admin-login");
-  const logoutBtn = document.getElementById("calendar-admin-logout");
-  if (!calendarEl || !titleEl || !prevBtn || !nextBtn || !editToggleBtn || !exportBtn || !adminStateEl || !loginBtn || !logoutBtn) return;
+  const toolbarRight = document.getElementById("calendar-toolbar-admin");
+  if (!calendarEl || !titleEl || !prevBtn || !nextBtn || !toolbarRight) return;
 
-  let editMode = false;
-  const ADMIN_SESSION_KEY = "tz_archive_admin";
-  const adminPasscode = (adminConfig && adminConfig.archiveEditPasscode) || "timezone-admin-please-change";
-  let isAdmin = sessionStorage.getItem(ADMIN_SESSION_KEY) === "1";
-
-  function syncAdminUi() {
-    adminStateEl.textContent = isAdmin ? "管理员模式" : "访客模式";
-    loginBtn.classList.toggle("hidden", isAdmin);
-    logoutBtn.classList.toggle("hidden", !isAdmin);
-    editToggleBtn.classList.toggle("hidden", !isAdmin);
-    exportBtn.classList.toggle("hidden", !isAdmin);
-    if (!isAdmin) editMode = false;
+  toolbarRight.innerHTML = "";
+  let editToggleBtn = null;
+  let exportBtn = null;
+  let logoutBtn = null;
+  if (showAdminChrome) {
+    function mkBtn(id, label) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "calendar-btn";
+      b.id = id;
+      b.textContent = label;
+      return b;
+    }
+    editToggleBtn = mkBtn("calendar-edit-toggle", "开启编辑");
+    exportBtn = mkBtn("calendar-export", "导出 JSON");
+    logoutBtn = mkBtn("calendar-admin-logout", "退出管理");
+    toolbarRight.append(editToggleBtn, exportBtn, logoutBtn);
+    const adminHints = document.getElementById("archive-admin-hints");
+    if (adminHints) adminHints.classList.remove("hidden");
   }
 
-  syncAdminUi();
+  let editMode = false;
+  const isAdmin = showAdminChrome;
   const sourceEvents = Array.isArray(events) ? [...events] : [];
   const sortedDates = sourceEvents
     .map((item) => item.date)
@@ -213,46 +245,37 @@ function setupArchiveCalendar(events, adminConfig) {
     render();
   });
 
-  editToggleBtn.addEventListener("click", () => {
-    if (!isAdmin) return;
-    editMode = !editMode;
-    editToggleBtn.textContent = editMode ? "关闭编辑" : "开启编辑";
-    render();
-  });
-
-  exportBtn.addEventListener("click", () => {
-    if (!isAdmin) return;
-    const clean = sourceEvents
-      .filter((item) => item.date && item.title && item.url)
-      .sort((a, b) => a.date.localeCompare(b.date));
-    const blob = new Blob([`${JSON.stringify(clean, null, 2)}\n`], { type: "application/json;charset=utf-8" });
-    const href = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = "vod-events.json";
-    a.click();
-    URL.revokeObjectURL(href);
-  });
-
-  loginBtn.addEventListener("click", () => {
-    const input = window.prompt("请输入管理员口令：");
-    if (!input) return;
-    if (input === adminPasscode) {
-      isAdmin = true;
-      sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
-      syncAdminUi();
+  if (editToggleBtn) {
+    editToggleBtn.addEventListener("click", () => {
+      if (!isAdmin) return;
+      editMode = !editMode;
+      editToggleBtn.textContent = editMode ? "关闭编辑" : "开启编辑";
       render();
-      return;
-    }
-    window.alert("口令错误。");
-  });
+    });
+  }
 
-  logoutBtn.addEventListener("click", () => {
-    isAdmin = false;
-    sessionStorage.removeItem(ADMIN_SESSION_KEY);
-    syncAdminUi();
-    render();
-  });
+  if (exportBtn) {
+    exportBtn.addEventListener("click", () => {
+      if (!isAdmin) return;
+      const clean = sourceEvents
+        .filter((item) => item.date && item.title && item.url)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      const blob = new Blob([`${JSON.stringify(clean, null, 2)}\n`], { type: "application/json;charset=utf-8" });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = "vod-events.json";
+      a.click();
+      URL.revokeObjectURL(href);
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      sessionStorage.removeItem(TZ_ARCHIVE_ADMIN_KEY);
+      window.location.reload();
+    });
+  }
 
   render();
 }

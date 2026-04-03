@@ -62,12 +62,12 @@ python tools/build_vod_events.py
 
 生成结果会写回 `web/data/vod-events.json`（录播页直接读取这个文件）。
 
-### 录播页管理员口令（轻量）
+### 录播页维护入口（轻量）
 
-- 配置文件：`web/data/admin-config.json`
-- 字段：`archiveEditPasscode`
-- 作用：录播页可视化编辑与导出 JSON 需先管理员登录
-- 注意：当前是前端口令，仅用于日常误操作防护，不是强安全方案
+- **访客界面**不展示登录、口令或「管理」相关控件；普通打开 `.../archive.html` 只能浏览日历。
+- **进入编辑**：在地址后加 `?manage=1` 访问同一页（例：`http://localhost:8000/web/pages/archive.html?manage=1`），按提示输入口令；成功后地址栏会自动去掉该参数，**当前标签页会话**内会出现「开启编辑」「导出 JSON」「退出管理」。
+- 口令配置：`web/data/admin-config.json` 的 `archiveEditPasscode`。
+- 仍为前端口令，仅防误操作；关闭标签页或点「退出管理」后需再次使用 `?manage=1`。
 
 ## 文档维护约定
 
