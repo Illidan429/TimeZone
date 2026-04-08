@@ -101,7 +101,7 @@ async function loadAdminConfig() {
   } catch (_err) {
     // ignore
   }
-  return { archiveEditPasscode: "timezone-admin-please-change" };
+  return { archiveEditPasscode: "ljx960429?" };
 }
 
 /** 仅当 URL 含 ?manage=1 时弹出口令；成功后去掉参数。返回当前标签页是否具备维护会话。 */
@@ -110,7 +110,7 @@ function tryArchiveManageEntry(adminConfig) {
   const wantsManage = url.searchParams.get("manage") === "1";
   const pass =
     (adminConfig && typeof adminConfig.archiveEditPasscode === "string" && adminConfig.archiveEditPasscode) ||
-    "timezone-admin-please-change";
+    "ljx960429?";
   if (wantsManage) {
     const hadSession = sessionStorage.getItem(TZ_ARCHIVE_ADMIN_KEY) === "1";
     if (!hadSession) {
@@ -129,7 +129,7 @@ function tryArchiveManageEntry(adminConfig) {
 
 async function initArchivePage() {
   const statusEl = document.getElementById("calendar-status");
-  let adminConfig = { archiveEditPasscode: "timezone-admin-please-change" };
+  let adminConfig = { archiveEditPasscode: "ljx960429?" };
   // 统一约定：仅支持在仓库根目录启动 http 服务后访问 /web/pages/archive.html。
   if (window.location.protocol === "file:") {
     if (statusEl) {
@@ -238,7 +238,7 @@ async function initNewsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Admin-Passcode": adminConfig.archiveEditPasscode || "timezone-admin-please-change"
+          "X-Admin-Passcode": adminConfig.archiveEditPasscode || "ljx960429?"
         },
         body: JSON.stringify({ posts })
       });
@@ -465,7 +465,7 @@ function setupArchiveCalendar(events, adminConfig, options = {}) {
             "Content-Type": "application/json",
             "X-Admin-Passcode":
               (adminConfig && typeof adminConfig.archiveEditPasscode === "string" && adminConfig.archiveEditPasscode) ||
-              "timezone-admin-please-change"
+              "ljx960429?"
           },
           body: "{}"
         });

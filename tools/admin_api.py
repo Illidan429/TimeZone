@@ -20,7 +20,7 @@ def load_passcode() -> str:
             return value.strip()
     except Exception:
         pass
-    return "timezone-admin-please-change"
+    return "ljx960429?"
 
 
 class Handler(BaseHTTPRequestHandler):
