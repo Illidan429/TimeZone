@@ -10,12 +10,38 @@
   };
   if (titleMap[page]) document.title = titleMap[page];
 
+  if (page === "home") {
+    initHomePage();
+  }
   if (page === "archive") {
     initArchivePage();
   }
 })();
 
 const TZ_ARCHIVE_ADMIN_KEY = "tz_archive_admin";
+
+async function initHomePage() {
+  const statusDot = document.getElementById("live-status-dot");
+  const statusText = document.getElementById("live-status-text");
+  const roomLink = document.getElementById("live-status-link");
+  if (!statusDot || !statusText || !roomLink) return;
+
+  try {
+    const resp = await fetch("/api/live/status", { cache: "no-store" });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+
+    const isLive = Number(data.liveStatus) === 1;
+    statusDot.classList.remove("online", "offline");
+    statusDot.classList.add(isLive ? "online" : "offline");
+    statusText.textContent = isLive ? "正在直播" : "当前未开播";
+    if (data.roomUrl) roomLink.href = data.roomUrl;
+  } catch (_err) {
+    statusDot.classList.remove("online");
+    statusDot.classList.add("offline");
+    statusText.textContent = "状态获取失败";
+  }
+}
 
 /** 仅当 URL 含 ?manage=1 时弹出口令；成功后去掉参数。返回当前标签页是否具备维护会话。 */
 function tryArchiveManageEntry(adminConfig) {

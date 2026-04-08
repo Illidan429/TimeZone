@@ -4,6 +4,7 @@ import os
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.request import urlopen
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -75,6 +76,33 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(504, {"ok": False, "message": "抓取超时（>180s）"})
         except Exception as exc:
             self._send_json(500, {"ok": False, "message": f"服务异常: {exc}"})
+
+    def do_GET(self):
+        if self.path != "/api/live/status":
+            self._send_json(404, {"ok": False, "message": "Not found"})
+            return
+        # 先通过主播 UID 查询直播间信息，再返回直播状态与可直达链接。
+        uid = "3493089362577527"
+        try:
+            api = f"https://api.live.bilibili.com/room/v1/Room/getRoomInfoOld?mid={uid}"
+            with urlopen(api, timeout=8) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            data = payload.get("data") or {}
+            room_id = data.get("roomid")
+            live_status = data.get("liveStatus", 0)
+            room_url = f"https://live.bilibili.com/{room_id}" if room_id else f"https://space.bilibili.com/{uid}"
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "uid": uid,
+                    "roomId": room_id,
+                    "roomUrl": room_url,
+                    "liveStatus": live_status,
+                },
+            )
+        except Exception as exc:
+            self._send_json(502, {"ok": False, "message": f"直播状态查询失败: {exc}"})
 
     def log_message(self, fmt, *args):
         return
