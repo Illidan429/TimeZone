@@ -4,7 +4,7 @@ import os
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -85,7 +85,14 @@ class Handler(BaseHTTPRequestHandler):
         uid = "3493089362577527"
         try:
             api = f"https://api.live.bilibili.com/room/v1/Room/getRoomInfoOld?mid={uid}"
-            with urlopen(api, timeout=8) as resp:
+            req = Request(
+                api,
+                headers={
+                    "User-Agent": "Mozilla/5.0 TimeZoneBot/1.0",
+                    "Referer": "https://www.bilibili.com/",
+                },
+            )
+            with urlopen(req, timeout=8) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
             data = payload.get("data") or {}
             room_id = data.get("roomid")
