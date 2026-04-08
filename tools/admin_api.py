@@ -68,7 +68,10 @@ def resolve_ip_location(ip: str) -> str:
         req = Request(url, headers={"User-Agent": "Mozilla/5.0 TimeZoneBot/1.0"})
         with urlopen(req, timeout=6) as resp:
             raw = resp.read()
-        text = raw.decode("utf-8", errors="ignore").strip() or raw.decode("gbk", errors="ignore").strip()
+        try:
+            text = raw.decode("utf-8").strip()
+        except UnicodeDecodeError:
+            text = raw.decode("gbk", errors="ignore").strip()
         data = json.loads(text)
         prov = (data.get("pro") or "").strip()
         city = (data.get("city") or "").strip()
@@ -283,6 +286,16 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(MALLOW_POSTS.read_text(encoding="utf-8"))
                 if not isinstance(data, list):
                     data = []
+                repaired = False
+                for item in data:
+                    ip = str(item.get("ip", "")).strip()
+                    loc = str(item.get("ipLocation", "")).strip()
+                    # 历史乱码/空值时按 IP 自动补一次属地。
+                    if ip and (not loc or len(loc) <= 1 or "?" in loc or "�" in loc):
+                        item["ipLocation"] = resolve_ip_location(ip)
+                        repaired = True
+                if repaired:
+                    MALLOW_POSTS.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
                 self._send_json(200, {"ok": True, "items": data})
             except Exception as exc:
                 self._send_json(500, {"ok": False, "message": f"读取失败: {exc}"})
