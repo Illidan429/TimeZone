@@ -43,6 +43,23 @@ function tryArchiveManageEntry(adminConfig) {
 async function initArchivePage() {
   const statusEl = document.getElementById("calendar-status");
   let adminConfig = { archiveEditPasscode: "timezone-admin-please-change" };
+  async function fetchJsonFromCandidates(paths) {
+    let lastError = null;
+    for (const p of paths) {
+      try {
+        const url = new URL(p, window.location.origin).toString();
+        const resp = await fetch(url, { cache: "no-store" });
+        if (!resp.ok) {
+          lastError = new Error(`HTTP ${resp.status} for ${p}`);
+          continue;
+        }
+        return await resp.json();
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error("fetch failed");
+  }
   // 统一约定：仅支持在仓库根目录启动 http 服务后访问 /web/pages/archive.html。
   if (window.location.protocol === "file:") {
     if (statusEl) {
@@ -55,22 +72,15 @@ async function initArchivePage() {
 
   try {
     try {
-      const cfgUrl = new URL("/web/data/admin-config.json", window.location.origin).toString();
-      const cfgResp = await fetch(cfgUrl, { cache: "no-store" });
-      if (cfgResp.ok) {
-        const cfgData = await cfgResp.json();
-        if (cfgData && typeof cfgData.archiveEditPasscode === "string") {
-          adminConfig = cfgData;
-        }
+      const cfgData = await fetchJsonFromCandidates(["/web/data/admin-config.json", "/data/admin-config.json"]);
+      if (cfgData && typeof cfgData.archiveEditPasscode === "string") {
+        adminConfig = cfgData;
       }
     } catch (_err) {
       // keep default config
     }
 
-    const dataUrl = new URL("/web/data/vod-events.json", window.location.origin).toString();
-    const resp = await fetch(dataUrl, { cache: "no-store" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const events = await resp.json();
+    const events = await fetchJsonFromCandidates(["/web/data/vod-events.json", "/data/vod-events.json"]);
     if (!Array.isArray(events)) throw new Error("Invalid data format");
 
     const showAdminChrome = tryArchiveManageEntry(adminConfig);
@@ -79,7 +89,7 @@ async function initArchivePage() {
   } catch (err) {
     const showAdminChrome = tryArchiveManageEntry(adminConfig);
     if (statusEl) {
-      statusEl.textContent = "录播数据读取失败。请固定使用仓库根目录服务：`python -m http.server 8000`，并检查 http://localhost:8000/web/data/vod-events.json 是否可访问。";
+      statusEl.textContent = "录播数据读取失败。请检查 /web/data/vod-events.json 或 /data/vod-events.json 是否可访问；本地预览请在仓库根目录执行 `python -m http.server 8000`。";
       statusEl.classList.add("error-text");
     }
     setupArchiveCalendar([], adminConfig, { showAdminChrome });
