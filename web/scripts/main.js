@@ -109,6 +109,7 @@ function setupArchiveCalendar(events, adminConfig, options = {}) {
   let editToggleBtn = null;
   let exportBtn = null;
   let logoutBtn = null;
+  let refreshBtn = null;
   if (showAdminChrome) {
     function mkBtn(id, label) {
       const b = document.createElement("button");
@@ -119,9 +120,10 @@ function setupArchiveCalendar(events, adminConfig, options = {}) {
       return b;
     }
     editToggleBtn = mkBtn("calendar-edit-toggle", "开启编辑");
+    refreshBtn = mkBtn("calendar-refresh-vod", "抓取最新录播");
     exportBtn = mkBtn("calendar-export", "导出 JSON");
     logoutBtn = mkBtn("calendar-admin-logout", "退出管理");
-    toolbarRight.append(editToggleBtn, exportBtn, logoutBtn);
+    toolbarRight.append(editToggleBtn, refreshBtn, exportBtn, logoutBtn);
     const adminHints = document.getElementById("archive-admin-hints");
     if (adminHints) adminHints.classList.remove("hidden");
   }
@@ -277,6 +279,49 @@ function setupArchiveCalendar(events, adminConfig, options = {}) {
       a.download = "vod-events.json";
       a.click();
       URL.revokeObjectURL(href);
+    });
+  }
+
+  if (refreshBtn) {
+    const statusEl = document.getElementById("calendar-status");
+    refreshBtn.addEventListener("click", async () => {
+      if (!isAdmin) return;
+      refreshBtn.disabled = true;
+      const oldText = refreshBtn.textContent;
+      refreshBtn.textContent = "抓取中...";
+      if (statusEl) {
+        statusEl.classList.remove("error-text");
+        statusEl.textContent = "正在服务器抓取最新录播，请稍候...";
+      }
+      try {
+        const resp = await fetch("/api/admin/refresh-vod", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Passcode":
+              (adminConfig && typeof adminConfig.archiveEditPasscode === "string" && adminConfig.archiveEditPasscode) ||
+              "timezone-admin-please-change"
+          },
+          body: "{}"
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) {
+          throw new Error((data && data.message) || `HTTP ${resp.status}`);
+        }
+        if (statusEl) {
+          statusEl.classList.remove("error-text");
+          statusEl.textContent = "录播抓取完成，正在刷新页面数据...";
+        }
+        window.location.reload();
+      } catch (err) {
+        if (statusEl) {
+          statusEl.classList.add("error-text");
+          statusEl.textContent = `抓取失败：${err.message || "未知错误"}`;
+        }
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = oldText;
+      }
     });
   }
 

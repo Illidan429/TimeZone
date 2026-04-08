@@ -68,6 +68,7 @@ python tools/build_vod_events.py
 - **进入编辑**：在地址后加 `?manage=1` 访问同一页（例：`http://localhost:8000/web/pages/archive.html?manage=1`），按提示输入口令；成功后地址栏会自动去掉该参数，**当前标签页会话**内会出现「开启编辑」「导出 JSON」「退出管理」。
 - 口令配置：`web/data/admin-config.json` 的 `archiveEditPasscode`。
 - 仍为前端口令，仅防误操作；关闭标签页或点「退出管理」后需再次使用 `?manage=1`。
+- 管理会话下可点「抓取最新录播」：会调用服务器 `/api/admin/refresh-vod`，在服务器执行 `python3 tools/build_vod_events.py` 并刷新日历数据。
 
 ## 文档维护约定
 
