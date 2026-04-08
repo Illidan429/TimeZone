@@ -7,6 +7,7 @@
     archive: "录播表 | TimeZone",
     music: "听歌 | TimeZone",
     tools: "工具 | TimeZone",
+    mallow: "棉花糖 | TimeZone",
     news: "公告 | TimeZone"
   };
   if (titleMap[page]) document.title = titleMap[page];
@@ -19,6 +20,9 @@
   }
   if (page === "news") {
     initNewsPage();
+  }
+  if (page === "mallow") {
+    initMallowPage();
   }
 })();
 
@@ -37,6 +41,7 @@ function ensureGlobalTopbar(page) {
         <a data-nav="archive" href="${base}pages/archive.html">录播表</a>
         <a data-nav="music" href="${base}pages/music.html">听歌</a>
         <a data-nav="tools" href="${base}pages/tools.html">工具</a>
+        <a data-nav="mallow" href="${base}pages/mallow.html">棉花糖</a>
         <a data-nav="news" href="${base}pages/news.html">公告</a>
       </nav>
     `;
@@ -259,6 +264,79 @@ async function initNewsPage() {
     sessionStorage.removeItem(TZ_ARCHIVE_ADMIN_KEY);
     window.location.reload();
   });
+}
+
+async function initMallowPage() {
+  const inputEl = document.getElementById("mallow-content");
+  const submitBtn = document.getElementById("mallow-submit");
+  const statusEl = document.getElementById("mallow-status");
+  const adminPanelEl = document.getElementById("mallow-admin-panel");
+  const adminListEl = document.getElementById("mallow-admin-list");
+  if (!inputEl || !submitBtn || !statusEl || !adminPanelEl || !adminListEl) return;
+
+  submitBtn.addEventListener("click", async () => {
+    const content = (inputEl.value || "").trim();
+    if (!content) {
+      statusEl.classList.add("error-text");
+      statusEl.textContent = "请先输入内容。";
+      return;
+    }
+    submitBtn.disabled = true;
+    const old = submitBtn.textContent;
+    submitBtn.textContent = "投递中...";
+    try {
+      const resp = await fetch("/api/mallow/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+      statusEl.classList.remove("error-text");
+      statusEl.textContent = "投递成功，感谢你的棉花糖。";
+      inputEl.value = "";
+    } catch (err) {
+      statusEl.classList.add("error-text");
+      statusEl.textContent = `投递失败：${err.message || "未知错误"}`;
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = old;
+    }
+  });
+
+  const adminConfig = await loadAdminConfig();
+  const isAdmin = tryArchiveManageEntry(adminConfig);
+  if (!isAdmin) return;
+  adminPanelEl.classList.remove("hidden");
+
+  try {
+    const resp = await fetch("/api/admin/mallow-list", {
+      headers: {
+        "X-Admin-Passcode": adminConfig.archiveEditPasscode || "ljx960429?"
+      },
+      cache: "no-store"
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (!items.length) {
+      adminListEl.innerHTML = '<div class="news-item"><div class="news-item-content">暂无棉花糖。</div></div>';
+      return;
+    }
+    const sorted = [...items].reverse();
+    adminListEl.innerHTML = sorted
+      .map(
+        (item) => `
+          <article class="news-item">
+            <div class="news-item-meta">${(item.createdAt || "").replace(/</g, "&lt;")}</div>
+            <div class="news-item-content">${(item.content || "").replace(/</g, "&lt;")}</div>
+          </article>
+        `
+      )
+      .join("");
+  } catch (err) {
+    adminListEl.innerHTML = `<div class="news-item"><div class="news-item-content">读取失败：${(err.message || "未知错误").replace(/</g, "&lt;")}</div></div>`;
+  }
 }
 
 function setupArchiveCalendar(events, adminConfig, options = {}) {

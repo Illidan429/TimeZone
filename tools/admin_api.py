@@ -2,6 +2,8 @@
 import json
 import os
 import subprocess
+import time
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -10,6 +12,7 @@ from urllib.request import Request, urlopen
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ADMIN_CFG = REPO_ROOT / "web" / "data" / "admin-config.json"
 NEWS_POSTS = REPO_ROOT / "web" / "data" / "news-posts.json"
+MALLOW_POSTS = REPO_ROOT / "web" / "data" / "mallow-posts.json"
 
 
 def load_passcode() -> str:
@@ -36,9 +39,40 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        if self.path not in ("/api/admin/refresh-vod", "/api/admin/news-posts"):
+        if self.path not in ("/api/admin/refresh-vod", "/api/admin/news-posts", "/api/mallow/submit"):
             self._send_json(404, {"ok": False, "message": "Not found"})
             return
+
+        if self.path == "/api/mallow/submit":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                raw = self.rfile.read(length) if length > 0 else b"{}"
+                payload = json.loads(raw.decode("utf-8"))
+                content = str(payload.get("content", "")).strip()
+                if not content:
+                    self._send_json(400, {"ok": False, "message": "内容不能为空"})
+                    return
+                if len(content) > 500:
+                    self._send_json(400, {"ok": False, "message": "内容不能超过 500 字"})
+                    return
+                try:
+                    existing = json.loads(MALLOW_POSTS.read_text(encoding="utf-8"))
+                    if not isinstance(existing, list):
+                        existing = []
+                except Exception:
+                    existing = []
+                item = {
+                    "id": str(int(time.time() * 1000)),
+                    "createdAt": datetime.utcnow().isoformat() + "Z",
+                    "content": content,
+                }
+                existing.append(item)
+                MALLOW_POSTS.write_text(json.dumps(existing, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                self._send_json(200, {"ok": True, "message": "投递成功"})
+                return
+            except Exception as exc:
+                self._send_json(500, {"ok": False, "message": f"投递失败: {exc}"})
+                return
 
         admin_pass = self.headers.get("X-Admin-Passcode", "")
         if admin_pass != load_passcode():
@@ -105,6 +139,20 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(500, {"ok": False, "message": f"服务异常: {exc}"})
 
     def do_GET(self):
+        if self.path == "/api/admin/mallow-list":
+            admin_pass = self.headers.get("X-Admin-Passcode", "")
+            if admin_pass != load_passcode():
+                self._send_json(403, {"ok": False, "message": "口令错误"})
+                return
+            try:
+                data = json.loads(MALLOW_POSTS.read_text(encoding="utf-8"))
+                if not isinstance(data, list):
+                    data = []
+                self._send_json(200, {"ok": True, "items": data})
+            except Exception as exc:
+                self._send_json(500, {"ok": False, "message": f"读取失败: {exc}"})
+            return
+
         if self.path != "/api/live/status":
             self._send_json(404, {"ok": False, "message": "Not found"})
             return

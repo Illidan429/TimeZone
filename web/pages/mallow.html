@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>棉花糖 | TimeZone</title>
+  <link rel="stylesheet" href="../styles/base.css" />
+  <link rel="stylesheet" href="../styles/themes/default.css" />
+</head>
+<body data-page="mallow">
+  <main class="page">
+    <section class="page-card">
+      <h1>棉花糖（匿名信箱）</h1>
+      <p class="muted">想说的话可以匿名投递给小时。请理性、友善发言。</p>
+
+      <div class="mallow-form">
+        <label class="news-label" for="mallow-content">想说的话</label>
+        <textarea class="news-textarea" id="mallow-content" rows="5" maxlength="500" placeholder="匿名留言，不会展示昵称。"></textarea>
+        <div class="news-actions">
+          <button class="calendar-btn" id="mallow-submit" type="button">匿名投递</button>
+        </div>
+      </div>
+
+      <p class="hint" id="mallow-status">欢迎投递棉花糖。</p>
+
+      <div class="mallow-admin hidden" id="mallow-admin-panel">
+        <h2>管理视图（全部棉花糖）</h2>
+        <div class="news-list" id="mallow-admin-list"></div>
+      </div>
+
+      <a class="back-link" href="../index.html">返回首页</a>
+    </section>
+  </main>
+  <script src="../scripts/main.js"></script>
+</body>
+</html>

@@ -348,6 +348,14 @@ h2 {
   margin-top: 0.8rem;
 }
 
+.mallow-form {
+  margin-top: 1rem;
+}
+
+.mallow-admin {
+  margin-top: 1rem;
+}
+
 .calendar-toolbar {
   margin-top: 1rem;
   display: flex;
