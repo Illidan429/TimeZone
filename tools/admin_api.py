@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ADMIN_CFG = REPO_ROOT / "web" / "data" / "admin-config.json"
+NEWS_POSTS = REPO_ROOT / "web" / "data" / "news-posts.json"
 
 
 def load_passcode() -> str:
@@ -35,7 +36,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        if self.path != "/api/admin/refresh-vod":
+        if self.path not in ("/api/admin/refresh-vod", "/api/admin/news-posts"):
             self._send_json(404, {"ok": False, "message": "Not found"})
             return
 
@@ -43,6 +44,32 @@ class Handler(BaseHTTPRequestHandler):
         if admin_pass != load_passcode():
             self._send_json(403, {"ok": False, "message": "口令错误"})
             return
+
+        if self.path == "/api/admin/news-posts":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                raw = self.rfile.read(length) if length > 0 else b"{}"
+                payload = json.loads(raw.decode("utf-8"))
+                posts = payload.get("posts")
+                if not isinstance(posts, list):
+                    self._send_json(400, {"ok": False, "message": "posts 必须是数组"})
+                    return
+                clean = []
+                for item in posts:
+                    if not isinstance(item, dict):
+                        continue
+                    date = str(item.get("date", "")).strip()
+                    title = str(item.get("title", "")).strip()
+                    content = str(item.get("content", "")).strip()
+                    if not (date and title and content):
+                        continue
+                    clean.append({"date": date[:20], "title": title[:120], "content": content[:5000]})
+                NEWS_POSTS.write_text(json.dumps(clean, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                self._send_json(200, {"ok": True, "message": "开发日记已保存", "count": len(clean)})
+                return
+            except Exception as exc:
+                self._send_json(500, {"ok": False, "message": f"保存失败: {exc}"})
+                return
 
         try:
             cmd = ["python3", "tools/build_vod_events.py"]

@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
@@ -12,9 +12,23 @@
     <section class="page-card">
       <h1>公告 / 开发日记</h1>
       <p class="muted">由管理员发布站务说明和开发进展。</p>
-      <ul class="page-list">
-        <li>2026-04-02：第一期最小上线版骨架已创建。</li>
-      </ul>
+      <div id="news-list" class="news-list" aria-live="polite"></div>
+      <div id="news-admin-panel" class="news-admin hidden">
+        <h2>写入新日记</h2>
+        <label class="news-label" for="news-date">日期</label>
+        <input class="news-input" id="news-date" type="date" />
+        <label class="news-label" for="news-title">标题</label>
+        <input class="news-input" id="news-title" type="text" maxlength="80" placeholder="例如：录播抓取能力上线" />
+        <label class="news-label" for="news-content">内容</label>
+        <textarea class="news-textarea" id="news-content" rows="4" placeholder="写今天做了什么、修了什么。"></textarea>
+        <div class="news-actions">
+          <button class="calendar-btn" id="news-add-local" type="button">加入列表</button>
+          <button class="calendar-btn" id="news-save-server" type="button">保存到服务器</button>
+          <button class="calendar-btn" id="news-admin-logout" type="button">退出管理</button>
+        </div>
+      </div>
+      <p class="hint hidden" id="news-admin-tip">管理模式：先“加入列表”可预览，再点“保存到服务器”落盘。</p>
+      <p class="hint" id="news-status">正在载入开发日记...</p>
       <a class="back-link" href="../index.html">返回首页</a>
     </section>
   </main>

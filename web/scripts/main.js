@@ -17,6 +17,9 @@
   if (page === "archive") {
     initArchivePage();
   }
+  if (page === "news") {
+    initNewsPage();
+  }
 })();
 
 const TZ_ARCHIVE_ADMIN_KEY = "tz_archive_admin";
@@ -71,6 +74,36 @@ async function initHomePage() {
   }
 }
 
+async function fetchJsonFromCandidates(paths) {
+  let lastError = null;
+  for (const p of paths) {
+    try {
+      const url = new URL(p, window.location.origin).toString();
+      const resp = await fetch(url, { cache: "no-store" });
+      if (!resp.ok) {
+        lastError = new Error(`HTTP ${resp.status} for ${p}`);
+        continue;
+      }
+      return await resp.json();
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("fetch failed");
+}
+
+async function loadAdminConfig() {
+  try {
+    const cfgData = await fetchJsonFromCandidates(["/web/data/admin-config.json", "/data/admin-config.json"]);
+    if (cfgData && typeof cfgData.archiveEditPasscode === "string") {
+      return cfgData;
+    }
+  } catch (_err) {
+    // ignore
+  }
+  return { archiveEditPasscode: "timezone-admin-please-change" };
+}
+
 /** 仅当 URL 含 ?manage=1 时弹出口令；成功后去掉参数。返回当前标签页是否具备维护会话。 */
 function tryArchiveManageEntry(adminConfig) {
   const url = new URL(window.location.href);
@@ -97,23 +130,6 @@ function tryArchiveManageEntry(adminConfig) {
 async function initArchivePage() {
   const statusEl = document.getElementById("calendar-status");
   let adminConfig = { archiveEditPasscode: "timezone-admin-please-change" };
-  async function fetchJsonFromCandidates(paths) {
-    let lastError = null;
-    for (const p of paths) {
-      try {
-        const url = new URL(p, window.location.origin).toString();
-        const resp = await fetch(url, { cache: "no-store" });
-        if (!resp.ok) {
-          lastError = new Error(`HTTP ${resp.status} for ${p}`);
-          continue;
-        }
-        return await resp.json();
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    throw lastError || new Error("fetch failed");
-  }
   // 统一约定：仅支持在仓库根目录启动 http 服务后访问 /web/pages/archive.html。
   if (window.location.protocol === "file:") {
     if (statusEl) {
@@ -125,14 +141,7 @@ async function initArchivePage() {
   }
 
   try {
-    try {
-      const cfgData = await fetchJsonFromCandidates(["/web/data/admin-config.json", "/data/admin-config.json"]);
-      if (cfgData && typeof cfgData.archiveEditPasscode === "string") {
-        adminConfig = cfgData;
-      }
-    } catch (_err) {
-      // keep default config
-    }
+    adminConfig = await loadAdminConfig();
 
     const events = await fetchJsonFromCandidates(["/web/data/vod-events.json", "/data/vod-events.json"]);
     if (!Array.isArray(events)) throw new Error("Invalid data format");
@@ -148,6 +157,108 @@ async function initArchivePage() {
     }
     setupArchiveCalendar([], adminConfig, { showAdminChrome });
   }
+}
+
+async function initNewsPage() {
+  const listEl = document.getElementById("news-list");
+  const statusEl = document.getElementById("news-status");
+  const panelEl = document.getElementById("news-admin-panel");
+  const tipEl = document.getElementById("news-admin-tip");
+  const dateEl = document.getElementById("news-date");
+  const titleEl = document.getElementById("news-title");
+  const contentEl = document.getElementById("news-content");
+  const addLocalBtn = document.getElementById("news-add-local");
+  const saveBtn = document.getElementById("news-save-server");
+  const logoutBtn = document.getElementById("news-admin-logout");
+  if (!listEl || !statusEl || !panelEl || !dateEl || !titleEl || !contentEl || !addLocalBtn || !saveBtn || !logoutBtn) return;
+
+  const adminConfig = await loadAdminConfig();
+  const isAdmin = tryArchiveManageEntry(adminConfig);
+  if (isAdmin) {
+    panelEl.classList.remove("hidden");
+    if (tipEl) tipEl.classList.remove("hidden");
+  }
+
+  let posts = [];
+  try {
+    const data = await fetchJsonFromCandidates(["/web/data/news-posts.json", "/data/news-posts.json"]);
+    posts = Array.isArray(data) ? data : [];
+    statusEl.textContent = "开发日记已载入。";
+  } catch (_err) {
+    statusEl.textContent = "开发日记读取失败。";
+    statusEl.classList.add("error-text");
+  }
+
+  function renderPosts() {
+    if (!posts.length) {
+      listEl.innerHTML = '<div class="news-item"><div class="news-item-content">暂无内容。</div></div>';
+      return;
+    }
+    const sorted = [...posts].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    listEl.innerHTML = sorted
+      .map(
+        (p) => `
+        <article class="news-item">
+          <div class="news-item-title">${(p.title || "").replace(/</g, "&lt;")}</div>
+          <div class="news-item-meta">${(p.date || "").replace(/</g, "&lt;")}</div>
+          <div class="news-item-content">${(p.content || "").replace(/</g, "&lt;")}</div>
+        </article>
+      `
+      )
+      .join("");
+  }
+
+  renderPosts();
+  if (!isAdmin) return;
+
+  dateEl.value = new Date().toISOString().slice(0, 10);
+  addLocalBtn.addEventListener("click", () => {
+    const date = (dateEl.value || "").trim();
+    const title = (titleEl.value || "").trim();
+    const content = (contentEl.value || "").trim();
+    if (!date || !title || !content) {
+      statusEl.textContent = "请先填写日期、标题和内容。";
+      statusEl.classList.add("error-text");
+      return;
+    }
+    statusEl.classList.remove("error-text");
+    posts.push({ date, title, content });
+    renderPosts();
+    statusEl.textContent = "已加入列表预览，记得点“保存到服务器”。";
+    titleEl.value = "";
+    contentEl.value = "";
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    saveBtn.disabled = true;
+    const old = saveBtn.textContent;
+    saveBtn.textContent = "保存中...";
+    try {
+      const resp = await fetch("/api/admin/news-posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Passcode": adminConfig.archiveEditPasscode || "timezone-admin-please-change"
+        },
+        body: JSON.stringify({ posts })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+      statusEl.classList.remove("error-text");
+      statusEl.textContent = "开发日记已保存到服务器。";
+    } catch (err) {
+      statusEl.classList.add("error-text");
+      statusEl.textContent = `保存失败：${err.message || "未知错误"}`;
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = old;
+    }
+  });
+
+  logoutBtn.addEventListener("click", () => {
+    sessionStorage.removeItem(TZ_ARCHIVE_ADMIN_KEY);
+    window.location.reload();
+  });
 }
 
 function setupArchiveCalendar(events, adminConfig, options = {}) {
