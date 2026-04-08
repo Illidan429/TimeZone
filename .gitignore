@@ -25,3 +25,7 @@ dist/
 
 # Misc
 *.local
+
+# Runtime data (server-local, keep across deploy reset)
+web/runtime-data/*
+!web/runtime-data/.gitkeep

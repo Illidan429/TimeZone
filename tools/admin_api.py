@@ -14,9 +14,11 @@ from urllib.request import Request, urlopen
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ADMIN_CFG = REPO_ROOT / "web" / "data" / "admin-config.json"
-NEWS_POSTS = REPO_ROOT / "web" / "data" / "news-posts.json"
-MALLOW_POSTS = REPO_ROOT / "web" / "data" / "mallow-posts.json"
-MALLOW_UPLOAD_DIR = REPO_ROOT / "web" / "data" / "mallow-files"
+RUNTIME_DIR = REPO_ROOT / "web" / "runtime-data"
+NEWS_POSTS = RUNTIME_DIR / "news-posts.json"
+MALLOW_POSTS = RUNTIME_DIR / "mallow-posts.json"
+VOD_EVENTS = RUNTIME_DIR / "vod-events.json"
+MALLOW_UPLOAD_DIR = RUNTIME_DIR / "mallow-files"
 MAX_MALLOW_FILE_SIZE = 20 * 1024 * 1024
 
 
@@ -29,6 +31,18 @@ def load_passcode() -> str:
     except Exception:
         pass
     return "ljx960429?"
+
+
+def ensure_runtime_dir():
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def ensure_seed_file(runtime_path: Path, fallback: Path):
+    ensure_runtime_dir()
+    if runtime_path.exists():
+        return
+    if fallback.exists():
+        runtime_path.write_text(fallback.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -50,6 +64,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.path == "/api/mallow/submit":
             try:
+                ensure_seed_file(MALLOW_POSTS, REPO_ROOT / "web" / "data" / "mallow-posts.json")
                 content_type = self.headers.get("Content-Type", "")
                 content = ""
                 attachment = None
@@ -123,6 +138,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.path == "/api/admin/news-posts":
             try:
+                ensure_runtime_dir()
                 length = int(self.headers.get("Content-Length", "0"))
                 raw = self.rfile.read(length) if length > 0 else b"{}"
                 payload = json.loads(raw.decode("utf-8"))
@@ -149,6 +165,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.path == "/api/admin/mallow-delete":
             try:
+                ensure_seed_file(MALLOW_POSTS, REPO_ROOT / "web" / "data" / "mallow-posts.json")
                 length = int(self.headers.get("Content-Length", "0"))
                 raw = self.rfile.read(length) if length > 0 else b"{}"
                 payload = json.loads(raw.decode("utf-8"))
@@ -186,7 +203,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
         try:
-            cmd = ["python3", "tools/build_vod_events.py"]
+            ensure_runtime_dir()
+            cmd = ["python3", "tools/build_vod_events.py", "--output", str(VOD_EVENTS)]
             proc = subprocess.run(
                 cmd,
                 cwd=str(REPO_ROOT),
@@ -225,6 +243,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(403, {"ok": False, "message": "口令错误"})
                 return
             try:
+                ensure_seed_file(MALLOW_POSTS, REPO_ROOT / "web" / "data" / "mallow-posts.json")
                 data = json.loads(MALLOW_POSTS.read_text(encoding="utf-8"))
                 if not isinstance(data, list):
                     data = []

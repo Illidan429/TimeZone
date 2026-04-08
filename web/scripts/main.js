@@ -148,7 +148,11 @@ async function initArchivePage() {
   try {
     adminConfig = await loadAdminConfig();
 
-    const events = await fetchJsonFromCandidates(["/web/data/vod-events.json", "/data/vod-events.json"]);
+    const events = await fetchJsonFromCandidates([
+      "/runtime-data/vod-events.json",
+      "/web/data/vod-events.json",
+      "/data/vod-events.json"
+    ]);
     if (!Array.isArray(events)) throw new Error("Invalid data format");
 
     const showAdminChrome = tryArchiveManageEntry(adminConfig);
@@ -157,7 +161,7 @@ async function initArchivePage() {
   } catch (err) {
     const showAdminChrome = tryArchiveManageEntry(adminConfig);
     if (statusEl) {
-      statusEl.textContent = "录播数据读取失败。请检查 /web/data/vod-events.json 或 /data/vod-events.json 是否可访问；本地预览请在仓库根目录执行 `python -m http.server 8000`。";
+      statusEl.textContent = "录播数据读取失败。请检查 /runtime-data/vod-events.json（或 /web/data/vod-events.json）是否可访问；本地预览请在仓库根目录执行 `python -m http.server 8000`。";
       statusEl.classList.add("error-text");
     }
     setupArchiveCalendar([], adminConfig, { showAdminChrome });
@@ -186,7 +190,11 @@ async function initNewsPage() {
 
   let posts = [];
   try {
-    const data = await fetchJsonFromCandidates(["/web/data/news-posts.json", "/data/news-posts.json"]);
+    const data = await fetchJsonFromCandidates([
+      "/runtime-data/news-posts.json",
+      "/web/data/news-posts.json",
+      "/data/news-posts.json"
+    ]);
     posts = Array.isArray(data) ? data : [];
     statusEl.textContent = "开发日记已载入。";
   } catch (_err) {
