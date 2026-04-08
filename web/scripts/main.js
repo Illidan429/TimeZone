@@ -1,6 +1,7 @@
 (function () {
   const page = document.body.dataset.page;
   if (!page) return;
+  ensureGlobalTopbar(page);
   const titleMap = {
     home: "TimeZone | 小时的星球",
     archive: "录播表 | TimeZone",
@@ -19,6 +20,33 @@
 })();
 
 const TZ_ARCHIVE_ADMIN_KEY = "tz_archive_admin";
+
+function ensureGlobalTopbar(page) {
+  let topbar = document.querySelector(".topbar");
+  if (!topbar) {
+    const isHome = page === "home";
+    const base = isHome ? "" : "../";
+    topbar = document.createElement("header");
+    topbar.className = "topbar";
+    topbar.innerHTML = `
+      <a class="brand" href="${base}index.html">TimeZone</a>
+      <nav class="nav">
+        <a data-nav="archive" href="${base}pages/archive.html">录播表</a>
+        <a data-nav="music" href="${base}pages/music.html">听歌</a>
+        <a data-nav="tools" href="${base}pages/tools.html">工具</a>
+        <a data-nav="news" href="${base}pages/news.html">公告</a>
+      </nav>
+    `;
+    const first = document.body.firstChild;
+    document.body.insertBefore(topbar, first);
+  }
+
+  const key = page === "home" ? null : page;
+  if (key) {
+    const active = topbar.querySelector(`.nav a[data-nav="${key}"]`);
+    if (active) active.classList.add("active");
+  }
+}
 
 async function initHomePage() {
   const statusDot = document.getElementById("live-status-dot");
