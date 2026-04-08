@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 import json
 import os
+import cgi
+import re
 import subprocess
 import time
+import uuid
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,6 +16,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 ADMIN_CFG = REPO_ROOT / "web" / "data" / "admin-config.json"
 NEWS_POSTS = REPO_ROOT / "web" / "data" / "news-posts.json"
 MALLOW_POSTS = REPO_ROOT / "web" / "data" / "mallow-posts.json"
+MALLOW_UPLOAD_DIR = REPO_ROOT / "web" / "data" / "mallow-files"
+MAX_MALLOW_FILE_SIZE = 20 * 1024 * 1024
 
 
 def load_passcode() -> str:
@@ -39,16 +44,48 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        if self.path not in ("/api/admin/refresh-vod", "/api/admin/news-posts", "/api/mallow/submit"):
+        if self.path not in ("/api/admin/refresh-vod", "/api/admin/news-posts", "/api/admin/mallow-delete", "/api/mallow/submit"):
             self._send_json(404, {"ok": False, "message": "Not found"})
             return
 
         if self.path == "/api/mallow/submit":
             try:
-                length = int(self.headers.get("Content-Length", "0"))
-                raw = self.rfile.read(length) if length > 0 else b"{}"
-                payload = json.loads(raw.decode("utf-8"))
-                content = str(payload.get("content", "")).strip()
+                content_type = self.headers.get("Content-Type", "")
+                content = ""
+                attachment = None
+                if content_type.startswith("multipart/form-data"):
+                    form = cgi.FieldStorage(
+                        fp=self.rfile,
+                        headers=self.headers,
+                        environ={
+                            "REQUEST_METHOD": "POST",
+                            "CONTENT_TYPE": content_type,
+                        },
+                    )
+                    content = str(form.getfirst("content", "")).strip()
+                    file_item = form["file"] if "file" in form else None
+                    if file_item is not None and getattr(file_item, "filename", ""):
+                        filename = os.path.basename(str(file_item.filename))
+                        data = file_item.file.read(MAX_MALLOW_FILE_SIZE + 1)
+                        if len(data) > MAX_MALLOW_FILE_SIZE:
+                            self._send_json(400, {"ok": False, "message": "附件不能超过 20MB"})
+                            return
+                        safe = re.sub(r"[^A-Za-z0-9._-]", "_", filename)[:120] or "file.bin"
+                        MALLOW_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+                        stored = f"{uuid.uuid4().hex}_{safe}"
+                        saved_path = MALLOW_UPLOAD_DIR / stored
+                        saved_path.write_bytes(data)
+                        attachment = {
+                            "name": filename[:200],
+                            "size": len(data),
+                            "url": f"/data/mallow-files/{stored}",
+                            "savedPath": str(saved_path),
+                        }
+                else:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    raw = self.rfile.read(length) if length > 0 else b"{}"
+                    payload = json.loads(raw.decode("utf-8"))
+                    content = str(payload.get("content", "")).strip()
                 if not content:
                     self._send_json(400, {"ok": False, "message": "内容不能为空"})
                     return
@@ -66,6 +103,11 @@ class Handler(BaseHTTPRequestHandler):
                     "createdAt": datetime.utcnow().isoformat() + "Z",
                     "content": content,
                 }
+                if attachment:
+                    item["attachmentName"] = attachment["name"]
+                    item["attachmentSize"] = attachment["size"]
+                    item["attachmentUrl"] = attachment["url"]
+                    item["attachmentSavedPath"] = attachment["savedPath"]
                 existing.append(item)
                 MALLOW_POSTS.write_text(json.dumps(existing, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
                 self._send_json(200, {"ok": True, "message": "投递成功"})
@@ -103,6 +145,44 @@ class Handler(BaseHTTPRequestHandler):
                 return
             except Exception as exc:
                 self._send_json(500, {"ok": False, "message": f"保存失败: {exc}"})
+                return
+
+        if self.path == "/api/admin/mallow-delete":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                raw = self.rfile.read(length) if length > 0 else b"{}"
+                payload = json.loads(raw.decode("utf-8"))
+                target_id = str(payload.get("id", "")).strip()
+                if not target_id:
+                    self._send_json(400, {"ok": False, "message": "缺少 id"})
+                    return
+                try:
+                    data = json.loads(MALLOW_POSTS.read_text(encoding="utf-8"))
+                    if not isinstance(data, list):
+                        data = []
+                except Exception:
+                    data = []
+                kept = []
+                removed = None
+                for item in data:
+                    if str(item.get("id", "")) == target_id and removed is None:
+                        removed = item
+                        continue
+                    kept.append(item)
+                if removed is None:
+                    self._send_json(404, {"ok": False, "message": "未找到该条棉花糖"})
+                    return
+                saved = removed.get("attachmentSavedPath")
+                if saved:
+                    try:
+                        Path(saved).unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                MALLOW_POSTS.write_text(json.dumps(kept, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                self._send_json(200, {"ok": True, "message": "已删除"})
+                return
+            except Exception as exc:
+                self._send_json(500, {"ok": False, "message": f"删除失败: {exc}"})
                 return
 
         try:

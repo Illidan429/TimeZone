@@ -356,6 +356,15 @@ h2 {
   margin-top: 1rem;
 }
 
+.mallow-attachment {
+  margin-top: 0.45rem;
+  font-size: 0.86rem;
+}
+
+.mallow-admin-actions {
+  margin-top: 0.55rem;
+}
+
 .calendar-toolbar {
   margin-top: 1rem;
   display: flex;

@@ -268,11 +268,12 @@ async function initNewsPage() {
 
 async function initMallowPage() {
   const inputEl = document.getElementById("mallow-content");
+  const fileEl = document.getElementById("mallow-file");
   const submitBtn = document.getElementById("mallow-submit");
   const statusEl = document.getElementById("mallow-status");
   const adminPanelEl = document.getElementById("mallow-admin-panel");
   const adminListEl = document.getElementById("mallow-admin-list");
-  if (!inputEl || !submitBtn || !statusEl || !adminPanelEl || !adminListEl) return;
+  if (!inputEl || !fileEl || !submitBtn || !statusEl || !adminPanelEl || !adminListEl) return;
 
   submitBtn.addEventListener("click", async () => {
     const content = (inputEl.value || "").trim();
@@ -285,16 +286,21 @@ async function initMallowPage() {
     const old = submitBtn.textContent;
     submitBtn.textContent = "投递中...";
     try {
+      const fd = new FormData();
+      fd.append("content", content);
+      if (fileEl.files && fileEl.files[0]) {
+        fd.append("file", fileEl.files[0]);
+      }
       const resp = await fetch("/api/mallow/submit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content })
+        body: fd
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || !data.ok) throw new Error(data.message || `HTTP ${resp.status}`);
       statusEl.classList.remove("error-text");
       statusEl.textContent = "投递成功，感谢你的棉花糖。";
       inputEl.value = "";
+      fileEl.value = "";
     } catch (err) {
       statusEl.classList.add("error-text");
       statusEl.textContent = `投递失败：${err.message || "未知错误"}`;
@@ -309,7 +315,7 @@ async function initMallowPage() {
   if (!isAdmin) return;
   adminPanelEl.classList.remove("hidden");
 
-  try {
+  async function loadAdminList() {
     const resp = await fetch("/api/admin/mallow-list", {
       headers: {
         "X-Admin-Passcode": adminConfig.archiveEditPasscode || "ljx960429?"
@@ -325,18 +331,63 @@ async function initMallowPage() {
     }
     const sorted = [...items].reverse();
     adminListEl.innerHTML = sorted
-      .map(
-        (item) => `
-          <article class="news-item">
-            <div class="news-item-meta">${(item.createdAt || "").replace(/</g, "&lt;")}</div>
-            <div class="news-item-content">${(item.content || "").replace(/</g, "&lt;")}</div>
+      .map((item) => {
+        const safeId = String(item.id || "").replace(/"/g, "&quot;");
+        const safeTime = String(item.createdAt || "").replace(/</g, "&lt;");
+        const safeContent = String(item.content || "").replace(/</g, "&lt;");
+        const attachment = item.attachmentUrl
+          ? `<div class="mallow-attachment">附件：<a href="${String(item.attachmentUrl).replace(/"/g, "&quot;")}" target="_blank" rel="noopener noreferrer">${String(item.attachmentName || "下载附件").replace(/</g, "&lt;")}</a></div>`
+          : "";
+        return `
+          <article class="news-item" data-id="${safeId}">
+            <div class="news-item-meta">${safeTime}</div>
+            <div class="news-item-content">${safeContent}</div>
+            ${attachment}
+            <div class="mallow-admin-actions">
+              <button class="calendar-btn mallow-delete-btn" type="button" data-id="${safeId}">删除</button>
+            </div>
           </article>
-        `
-      )
+        `;
+      })
       .join("");
+  }
+
+  try {
+    await loadAdminList();
   } catch (err) {
     adminListEl.innerHTML = `<div class="news-item"><div class="news-item-content">读取失败：${(err.message || "未知错误").replace(/</g, "&lt;")}</div></div>`;
   }
+
+  adminListEl.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest(".mallow-delete-btn");
+    if (!btn) return;
+    const id = btn.dataset.id || "";
+    if (!id) return;
+    if (!window.confirm("确认删除这条棉花糖？")) return;
+    btn.disabled = true;
+    const old = btn.textContent;
+    btn.textContent = "删除中...";
+    try {
+      const resp = await fetch("/api/admin/mallow-delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Passcode": adminConfig.archiveEditPasscode || "ljx960429?"
+        },
+        body: JSON.stringify({ id })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+      statusEl.classList.remove("error-text");
+      statusEl.textContent = "已删除棉花糖。";
+      await loadAdminList();
+    } catch (err) {
+      statusEl.classList.add("error-text");
+      statusEl.textContent = `删除失败：${err.message || "未知错误"}`;
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  });
 }
 
 function setupArchiveCalendar(events, adminConfig, options = {}) {
