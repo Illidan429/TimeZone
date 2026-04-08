@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
@@ -43,6 +44,39 @@ def ensure_seed_file(runtime_path: Path, fallback: Path):
         return
     if fallback.exists():
         runtime_path.write_text(fallback.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def get_client_ip(handler: BaseHTTPRequestHandler) -> str:
+    xff = (handler.headers.get("X-Forwarded-For") or "").strip()
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    xrip = (handler.headers.get("X-Real-IP") or "").strip()
+    if xrip:
+        return xrip
+    return handler.client_address[0] if handler.client_address else ""
+
+
+def resolve_ip_location(ip: str) -> str:
+    if not ip:
+        return "未知"
+    if ip.startswith(("127.", "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "::1")):
+        return "内网/本机"
+    try:
+        url = f"https://whois.pconline.com.cn/ipJson.jsp?json=true&ip={quote(ip)}"
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0 TimeZoneBot/1.0"})
+        with urlopen(req, timeout=6) as resp:
+            raw = resp.read()
+        text = raw.decode("utf-8", errors="ignore").strip() or raw.decode("gbk", errors="ignore").strip()
+        data = json.loads(text)
+        prov = (data.get("pro") or "").strip()
+        city = (data.get("city") or "").strip()
+        if prov or city:
+            return f"{prov}{city}".strip()
+    except Exception:
+        pass
+    return "未知"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -117,7 +151,9 @@ class Handler(BaseHTTPRequestHandler):
                     "id": str(int(time.time() * 1000)),
                     "createdAt": datetime.utcnow().isoformat() + "Z",
                     "content": content,
+                    "ip": get_client_ip(self),
                 }
+                item["ipLocation"] = resolve_ip_location(item["ip"])
                 if attachment:
                     item["attachmentName"] = attachment["name"]
                     item["attachmentSize"] = attachment["size"]

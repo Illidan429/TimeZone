@@ -343,12 +343,15 @@ async function initMallowPage() {
         const safeId = String(item.id || "").replace(/"/g, "&quot;");
         const safeTime = String(item.createdAt || "").replace(/</g, "&lt;");
         const safeContent = String(item.content || "").replace(/</g, "&lt;");
+        const safeIp = String(item.ip || "未知").replace(/</g, "&lt;");
+        const safeLoc = String(item.ipLocation || "未知").replace(/</g, "&lt;");
         const attachment = item.attachmentUrl
           ? `<div class="mallow-attachment">附件：<a href="${String(item.attachmentUrl).replace(/"/g, "&quot;")}" target="_blank" rel="noopener noreferrer">${String(item.attachmentName || "下载附件").replace(/</g, "&lt;")}</a></div>`
           : "";
         return `
           <article class="news-item" data-id="${safeId}">
             <div class="news-item-meta">${safeTime}</div>
+            <div class="news-item-meta">IP：${safeIp} · 属地：${safeLoc}</div>
             <div class="news-item-content">${safeContent}</div>
             ${attachment}
             <div class="mallow-admin-actions">
