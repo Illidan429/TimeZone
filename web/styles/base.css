@@ -365,6 +365,26 @@ h2 {
   margin-top: 0.55rem;
 }
 
+.access-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.8rem;
+  font-size: 0.9rem;
+}
+
+.access-log-table th,
+.access-log-table td {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 0.45rem 0.5rem;
+  vertical-align: top;
+}
+
+.access-log-table th {
+  color: var(--text-muted);
+  text-align: left;
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .calendar-toolbar {
   margin-top: 1rem;
   display: flex;

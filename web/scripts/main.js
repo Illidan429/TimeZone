@@ -8,7 +8,8 @@
     music: "听歌 | TimeZone",
     tools: "工具 | TimeZone",
     mallow: "棉花糖 | TimeZone",
-    news: "公告 | TimeZone"
+    news: "公告 | TimeZone",
+    "news-access": "访问记录 | TimeZone"
   };
   if (titleMap[page]) document.title = titleMap[page];
 
@@ -20,6 +21,9 @@
   }
   if (page === "news") {
     initNewsPage();
+  }
+  if (page === "news-access") {
+    initNewsAccessPage();
   }
   if (page === "mallow") {
     initMallowPage();
@@ -49,10 +53,57 @@ function ensureGlobalTopbar(page) {
     document.body.insertBefore(topbar, first);
   }
 
-  const key = page === "home" ? null : page;
+  const key = page === "home" ? null : page.startsWith("news") ? "news" : page;
   if (key) {
     const active = topbar.querySelector(`.nav a[data-nav="${key}"]`);
     if (active) active.classList.add("active");
+  }
+}
+
+async function initNewsAccessPage() {
+  const statusEl = document.getElementById("access-log-status");
+  const wrapEl = document.getElementById("access-log-wrap");
+  const bodyEl = document.getElementById("access-log-body");
+  if (!statusEl || !wrapEl || !bodyEl) return;
+  const adminConfig = await loadAdminConfig();
+  const isAdmin = tryArchiveManageEntry(adminConfig);
+  if (!isAdmin) {
+    statusEl.classList.add("error-text");
+    statusEl.textContent = "仅管理员模式可查看。请使用 ?manage=1 进入。";
+    return;
+  }
+  try {
+    const resp = await fetch("/api/admin/access-logs", {
+      headers: {
+        "X-Admin-Passcode": adminConfig.archiveEditPasscode || "ljx960429?"
+      },
+      cache: "no-store"
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (!items.length) {
+      statusEl.textContent = "暂无访问记录。";
+      return;
+    }
+    bodyEl.innerHTML = items
+      .map(
+        (it) => `
+          <tr>
+            <td>${String(it.time || "").replace(/</g, "&lt;")}</td>
+            <td>${String(it.path || "").replace(/</g, "&lt;")}</td>
+            <td>${String(it.ip || "").replace(/</g, "&lt;")}</td>
+            <td>${String(it.ipLocation || "未知").replace(/</g, "&lt;")}</td>
+            <td>${String(it.status || "").replace(/</g, "&lt;")}</td>
+          </tr>
+        `
+      )
+      .join("");
+    wrapEl.classList.remove("hidden");
+    statusEl.textContent = `已加载 ${items.length} 条访问记录。`;
+  } catch (err) {
+    statusEl.classList.add("error-text");
+    statusEl.textContent = `加载失败：${err.message || "未知错误"}`;
   }
 }
 

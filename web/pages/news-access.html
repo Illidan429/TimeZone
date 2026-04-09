@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>访问记录 | TimeZone</title>
+  <link rel="stylesheet" href="../styles/base.css" />
+  <link rel="stylesheet" href="../styles/themes/default.css" />
+</head>
+<body data-page="news-access">
+  <main class="page">
+    <section class="page-card">
+      <h1>访问历史记录（公告子页）</h1>
+      <p class="muted">仅管理员模式可查看，记录访问时间、页面、IP、属地。</p>
+      <p class="hint" id="access-log-status">正在加载访问记录...</p>
+      <div id="access-log-wrap" class="hidden">
+        <table class="access-log-table" id="access-log-table">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>页面</th>
+              <th>IP</th>
+              <th>属地</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="access-log-body"></tbody>
+        </table>
+      </div>
+      <a class="back-link" href="./news.html">返回公告</a>
+    </section>
+  </main>
+  <script src="../scripts/main.js"></script>
+</body>
+</html>

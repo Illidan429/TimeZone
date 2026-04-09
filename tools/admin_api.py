@@ -21,6 +21,8 @@ MALLOW_POSTS = RUNTIME_DIR / "mallow-posts.json"
 VOD_EVENTS = RUNTIME_DIR / "vod-events.json"
 MALLOW_UPLOAD_DIR = RUNTIME_DIR / "mallow-files"
 MAX_MALLOW_FILE_SIZE = 20 * 1024 * 1024
+NGINX_ACCESS_LOG = Path("/var/log/nginx/access.log")
+IP_LOCATION_CACHE: dict[str, str] = {}
 
 
 def load_passcode() -> str:
@@ -63,6 +65,8 @@ def resolve_ip_location(ip: str) -> str:
         return "未知"
     if ip.startswith(("127.", "10.", "192.168.", "172.16.", "172.17.", "172.18.", "172.19.", "172.2", "::1")):
         return "内网/本机"
+    if ip in IP_LOCATION_CACHE:
+        return IP_LOCATION_CACHE[ip]
     try:
         url = f"https://whois.pconline.com.cn/ipJson.jsp?json=true&ip={quote(ip)}"
         req = Request(url, headers={"User-Agent": "Mozilla/5.0 TimeZoneBot/1.0"})
@@ -76,10 +80,44 @@ def resolve_ip_location(ip: str) -> str:
         prov = (data.get("pro") or "").strip()
         city = (data.get("city") or "").strip()
         if prov or city:
-            return f"{prov}{city}".strip()
+            loc = f"{prov}{city}".strip()
+            IP_LOCATION_CACHE[ip] = loc
+            return loc
     except Exception:
         pass
+    IP_LOCATION_CACHE[ip] = "未知"
     return "未知"
+
+
+def read_access_logs(limit: int = 200) -> list[dict]:
+    if not NGINX_ACCESS_LOG.exists():
+        return []
+    try:
+        lines = NGINX_ACCESS_LOG.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except Exception:
+        return []
+    rows: list[dict] = []
+    pattern = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"(\S+)\s+([^"]+)\s+\S+"\s+(\d{3})')
+    for line in reversed(lines):
+        m = pattern.search(line)
+        if not m:
+            continue
+        ip, time_str, method, path, status = m.groups()
+        if path.startswith("/api/"):
+            continue
+        rows.append(
+            {
+                "time": time_str,
+                "method": method,
+                "path": path,
+                "status": int(status),
+                "ip": ip,
+                "ipLocation": resolve_ip_location(ip),
+            }
+        )
+        if len(rows) >= limit:
+            break
+    return rows
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -276,6 +314,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(500, {"ok": False, "message": f"服务异常: {exc}"})
 
     def do_GET(self):
+        if self.path.startswith("/api/admin/access-logs"):
+            admin_pass = self.headers.get("X-Admin-Passcode", "")
+            if admin_pass != load_passcode():
+                self._send_json(403, {"ok": False, "message": "口令错误"})
+                return
+            logs = read_access_logs(limit=200)
+            self._send_json(200, {"ok": True, "items": logs})
+            return
+
         if self.path == "/api/admin/mallow-list":
             admin_pass = self.headers.get("X-Admin-Passcode", "")
             if admin_pass != load_passcode():
