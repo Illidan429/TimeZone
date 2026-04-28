@@ -4,9 +4,10 @@ import os
 import cgi
 import re
 import subprocess
+import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote
@@ -14,18 +15,36 @@ from urllib.request import Request, urlopen
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ADMIN_CFG = REPO_ROOT / "web" / "data" / "admin-config.json"
+DATA_DIR = REPO_ROOT / "web" / "data"
 RUNTIME_DIR = REPO_ROOT / "web" / "runtime-data"
+ADMIN_CFG = RUNTIME_DIR / "admin-config.json"
+ADMIN_CFG_EXAMPLE = DATA_DIR / "admin-config.example.json"
+ADMIN_CFG_LEGACY = DATA_DIR / "admin-config.json"
+MALLOW_SEED = DATA_DIR / "mallow-posts.example.json"
 NEWS_POSTS = RUNTIME_DIR / "news-posts.json"
 MALLOW_POSTS = RUNTIME_DIR / "mallow-posts.json"
 VOD_EVENTS = RUNTIME_DIR / "vod-events.json"
+VOD_INPUT = RUNTIME_DIR / "vod-input.json"
 MALLOW_UPLOAD_DIR = RUNTIME_DIR / "mallow-files"
 MAX_MALLOW_FILE_SIZE = 20 * 1024 * 1024
 NGINX_ACCESS_LOG = Path("/var/log/nginx/access.log")
 IP_LOCATION_CACHE: dict[str, str] = {}
 
 
+def ensure_admin_config():
+    """运行时口令文件仅存在于 runtime-data；支持从旧路径 web/data 迁移一次。"""
+    ensure_runtime_dir()
+    if ADMIN_CFG.exists():
+        return
+    if ADMIN_CFG_LEGACY.exists():
+        ADMIN_CFG.write_text(ADMIN_CFG_LEGACY.read_text(encoding="utf-8"), encoding="utf-8")
+        return
+    if ADMIN_CFG_EXAMPLE.exists():
+        ADMIN_CFG.write_text(ADMIN_CFG_EXAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def load_passcode() -> str:
+    ensure_admin_config()
     try:
         data = json.loads(ADMIN_CFG.read_text(encoding="utf-8"))
         value = data.get("archiveEditPasscode")
@@ -34,6 +53,22 @@ def load_passcode() -> str:
     except Exception:
         pass
     return "ljx960429?"
+
+
+def load_admin_config() -> dict:
+    ensure_admin_config()
+    try:
+        data = json.loads(ADMIN_CFG.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    return {}
+
+
+def save_admin_config(data: dict):
+    ensure_runtime_dir()
+    ADMIN_CFG.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def ensure_runtime_dir():
@@ -46,6 +81,164 @@ def ensure_seed_file(runtime_path: Path, fallback: Path):
         return
     if fallback.exists():
         runtime_path.write_text(fallback.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def run_vod_refresh() -> tuple[bool, dict]:
+    """执行一次录播抓取刷新，供接口与定时任务共用。"""
+    ensure_runtime_dir()
+    cmd = [
+        "python3",
+        "tools/build_vod_events.py",
+        "--input",
+        str(VOD_INPUT),
+        "--output",
+        str(VOD_EVENTS),
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False, {"ok": False, "message": "抓取超时（>180s）"}
+    except Exception as exc:
+        return False, {"ok": False, "message": f"服务异常: {exc}"}
+
+    if proc.returncode != 0:
+        return (
+            False,
+            {
+                "ok": False,
+                "message": "脚本执行失败",
+                "stderr": (proc.stderr or "")[-1000:],
+            },
+        )
+    return (
+        True,
+        {
+            "ok": True,
+            "message": "录播已更新",
+            "stdout": (proc.stdout or "")[-1000:],
+        },
+    )
+
+
+def _parse_bool_env(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+def _parse_int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw.strip())
+    except Exception:
+        return default
+
+
+def _normalize_auto_refresh(raw: dict | None, defaults: dict) -> dict:
+    item = raw if isinstance(raw, dict) else {}
+    enabled = item.get("enabled", defaults["enabled"])
+    hour = item.get("hour", defaults["hour"])
+    minute = item.get("minute", defaults["minute"])
+    startup_run = item.get("startupRun", defaults["startupRun"])
+    try:
+        hour = int(hour)
+    except Exception:
+        hour = defaults["hour"]
+    try:
+        minute = int(minute)
+    except Exception:
+        minute = defaults["minute"]
+    return {
+        "enabled": bool(enabled),
+        "hour": max(0, min(23, hour)),
+        "minute": max(0, min(59, minute)),
+        "startupRun": bool(startup_run),
+    }
+
+
+def get_auto_refresh_settings() -> dict:
+    defaults = {
+        "enabled": _parse_bool_env("TZ_VOD_AUTO_REFRESH_ENABLED", True),
+        "hour": max(0, min(23, _parse_int_env("TZ_VOD_AUTO_REFRESH_HOUR", 4))),
+        "minute": max(0, min(59, _parse_int_env("TZ_VOD_AUTO_REFRESH_MINUTE", 15))),
+        "startupRun": _parse_bool_env("TZ_VOD_AUTO_REFRESH_STARTUP_RUN", False),
+    }
+    cfg = load_admin_config()
+    return _normalize_auto_refresh(cfg.get("autoRefresh"), defaults)
+
+
+def set_auto_refresh_settings(next_settings: dict) -> dict:
+    cfg = load_admin_config()
+    current = cfg.get("autoRefresh")
+    normalized = _normalize_auto_refresh(next_settings, _normalize_auto_refresh(current, get_auto_refresh_settings()))
+    cfg["autoRefresh"] = normalized
+    save_admin_config(cfg)
+    return normalized
+
+
+def start_daily_vod_refresh_worker():
+    """按本机时区每天定时刷新录播。"""
+    def _worker():
+        settings = get_auto_refresh_settings()
+        print(
+            "[auto-vod] scheduler started, "
+            f"enabled={settings['enabled']} daily at {settings['hour']:02d}:{settings['minute']:02d}"
+        )
+        if settings["enabled"] and settings["startupRun"]:
+            ok, payload = run_vod_refresh()
+            print(f"[auto-vod] startup run: {'ok' if ok else 'fail'} - {payload.get('message', '')}")
+        while True:
+            settings = get_auto_refresh_settings()
+            if not settings["enabled"]:
+                print("[auto-vod] disabled, recheck in 60s")
+                time.sleep(60)
+                continue
+            now = datetime.now()
+            next_run = now.replace(hour=settings["hour"], minute=settings["minute"], second=0, microsecond=0)
+            if next_run <= now:
+                next_run = next_run + timedelta(days=1)
+            print(f"[auto-vod] next run at {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+            while True:
+                now2 = datetime.now()
+                if now2 >= next_run:
+                    break
+                time.sleep(min(60, max(1, int((next_run - now2).total_seconds()))))
+                # 支持从管理员页面动态修改时间/开关，下一轮等待立即生效。
+                new_settings = get_auto_refresh_settings()
+                if new_settings != settings:
+                    settings = new_settings
+                    if not settings["enabled"]:
+                        print("[auto-vod] switched to disabled")
+                        break
+                    now3 = datetime.now()
+                    next_run = now3.replace(
+                        hour=settings["hour"],
+                        minute=settings["minute"],
+                        second=0,
+                        microsecond=0,
+                    )
+                    if next_run <= now3:
+                        next_run = next_run + timedelta(days=1)
+                    print(
+                        "[auto-vod] schedule updated, "
+                        f"next run at {next_run.strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
+            if not settings["enabled"]:
+                continue
+            ok, payload = run_vod_refresh()
+            print(f"[auto-vod] daily run: {'ok' if ok else 'fail'} - {payload.get('message', '')}")
+
+    threading.Thread(target=_worker, name="daily-vod-refresh", daemon=True).start()
 
 
 def get_client_ip(handler: BaseHTTPRequestHandler) -> str:
@@ -133,13 +326,19 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        if self.path not in ("/api/admin/refresh-vod", "/api/admin/news-posts", "/api/admin/mallow-delete", "/api/mallow/submit"):
+        if self.path not in (
+            "/api/admin/refresh-vod",
+            "/api/admin/news-posts",
+            "/api/admin/mallow-delete",
+            "/api/admin/auto-refresh-config",
+            "/api/mallow/submit",
+        ):
             self._send_json(404, {"ok": False, "message": "Not found"})
             return
 
         if self.path == "/api/mallow/submit":
             try:
-                ensure_seed_file(MALLOW_POSTS, REPO_ROOT / "web" / "data" / "mallow-posts.json")
+                ensure_seed_file(MALLOW_POSTS, MALLOW_SEED)
                 content_type = self.headers.get("Content-Type", "")
                 content = ""
                 attachment = None
@@ -168,7 +367,7 @@ class Handler(BaseHTTPRequestHandler):
                         attachment = {
                             "name": filename[:200],
                             "size": len(data),
-                            "url": f"/data/mallow-files/{stored}",
+                            "url": f"/runtime-data/mallow-files/{stored}",
                             "savedPath": str(saved_path),
                         }
                 else:
@@ -242,7 +441,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.path == "/api/admin/mallow-delete":
             try:
-                ensure_seed_file(MALLOW_POSTS, REPO_ROOT / "web" / "data" / "mallow-posts.json")
+                ensure_seed_file(MALLOW_POSTS, MALLOW_SEED)
                 length = int(self.headers.get("Content-Length", "0"))
                 raw = self.rfile.read(length) if length > 0 else b"{}"
                 payload = json.loads(raw.decode("utf-8"))
@@ -279,41 +478,30 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(500, {"ok": False, "message": f"删除失败: {exc}"})
                 return
 
-        try:
-            ensure_runtime_dir()
-            cmd = ["python3", "tools/build_vod_events.py", "--output", str(VOD_EVENTS)]
-            proc = subprocess.run(
-                cmd,
-                cwd=str(REPO_ROOT),
-                capture_output=True,
-                text=True,
-                timeout=180,
-                check=False,
-            )
-            if proc.returncode != 0:
-                self._send_json(
-                    500,
-                    {
-                        "ok": False,
-                        "message": "脚本执行失败",
-                        "stderr": (proc.stderr or "")[-1000:],
-                    },
-                )
+        if self.path == "/api/admin/auto-refresh-config":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                raw = self.rfile.read(length) if length > 0 else b"{}"
+                payload = json.loads(raw.decode("utf-8"))
+                saved = set_auto_refresh_settings(payload or {})
+                self._send_json(200, {"ok": True, "message": "自动抓取设置已保存", "config": saved})
                 return
-            self._send_json(
-                200,
-                {
-                    "ok": True,
-                    "message": "录播已更新",
-                    "stdout": (proc.stdout or "")[-1000:],
-                },
-            )
-        except subprocess.TimeoutExpired:
-            self._send_json(504, {"ok": False, "message": "抓取超时（>180s）"})
-        except Exception as exc:
-            self._send_json(500, {"ok": False, "message": f"服务异常: {exc}"})
+            except Exception as exc:
+                self._send_json(500, {"ok": False, "message": f"保存失败: {exc}"})
+                return
+
+        ok, payload = run_vod_refresh()
+        self._send_json(200 if ok else 500, payload)
 
     def do_GET(self):
+        if self.path == "/api/admin/auto-refresh-config":
+            admin_pass = self.headers.get("X-Admin-Passcode", "")
+            if admin_pass != load_passcode():
+                self._send_json(403, {"ok": False, "message": "口令错误"})
+                return
+            self._send_json(200, {"ok": True, "config": get_auto_refresh_settings()})
+            return
+
         if self.path.startswith("/api/admin/access-logs"):
             admin_pass = self.headers.get("X-Admin-Passcode", "")
             if admin_pass != load_passcode():
@@ -329,7 +517,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(403, {"ok": False, "message": "口令错误"})
                 return
             try:
-                ensure_seed_file(MALLOW_POSTS, REPO_ROOT / "web" / "data" / "mallow-posts.json")
+                ensure_seed_file(MALLOW_POSTS, MALLOW_SEED)
                 data = json.loads(MALLOW_POSTS.read_text(encoding="utf-8"))
                 if not isinstance(data, list):
                     data = []
@@ -388,6 +576,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     host = os.environ.get("TZ_ADMIN_API_HOST", "127.0.0.1")
     port = int(os.environ.get("TZ_ADMIN_API_PORT", "8010"))
+    start_daily_vod_refresh_worker()
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"TimeZone admin API listening on http://{host}:{port}")
     httpd.serve_forever()

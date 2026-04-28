@@ -130,6 +130,20 @@ async function initHomePage() {
   }
 }
 
+/** 站点文档根为仓库根且路径含 `/web/` 时，为 `/runtime-data/` 补上 `/web` 前缀，便于本地 `python -m http.server` 预览。 */
+function resolveRuntimePublicUrl(path) {
+  const p = String(path || "");
+  if (!p.startsWith("/runtime-data/")) return p;
+  try {
+    if ((window.location.pathname || "").includes("/web/")) {
+      return `/web${p}`;
+    }
+  } catch (_e) {
+    // ignore
+  }
+  return p;
+}
+
 async function fetchJsonFromCandidates(paths) {
   let lastError = null;
   for (const p of paths) {
@@ -150,7 +164,12 @@ async function fetchJsonFromCandidates(paths) {
 
 async function loadAdminConfig() {
   try {
-    const cfgData = await fetchJsonFromCandidates(["/web/data/admin-config.json", "/data/admin-config.json"]);
+    const cfgData = await fetchJsonFromCandidates([
+      "/web/runtime-data/admin-config.json",
+      "/runtime-data/admin-config.json",
+      "/web/data/admin-config.json",
+      "/data/admin-config.json"
+    ]);
     if (cfgData && typeof cfgData.archiveEditPasscode === "string") {
       return cfgData;
     }
@@ -200,6 +219,7 @@ async function initArchivePage() {
     adminConfig = await loadAdminConfig();
 
     const events = await fetchJsonFromCandidates([
+      "/web/runtime-data/vod-events.json",
       "/runtime-data/vod-events.json",
       "/web/data/vod-events.json",
       "/data/vod-events.json"
@@ -212,7 +232,8 @@ async function initArchivePage() {
   } catch (err) {
     const showAdminChrome = tryArchiveManageEntry(adminConfig);
     if (statusEl) {
-      statusEl.textContent = "录播数据读取失败。请检查 /runtime-data/vod-events.json（或 /web/data/vod-events.json）是否可访问；本地预览请在仓库根目录执行 `python -m http.server 8000`。";
+      statusEl.textContent =
+        "录播数据读取失败。请检查 `web/runtime-data/vod-events.json` 是否可访问（站点根为 `web/` 时路径为 `/runtime-data/vod-events.json`）；新克隆可先运行 `python tools/seed_runtime_data.py`；本地预览请在仓库根目录执行 `python -m http.server 8000`。";
       statusEl.classList.add("error-text");
     }
     setupArchiveCalendar([], adminConfig, { showAdminChrome });
@@ -242,6 +263,7 @@ async function initNewsPage() {
   let posts = [];
   try {
     const data = await fetchJsonFromCandidates([
+      "/web/runtime-data/news-posts.json",
       "/runtime-data/news-posts.json",
       "/web/data/news-posts.json",
       "/data/news-posts.json"
@@ -397,7 +419,7 @@ async function initMallowPage() {
         const safeIp = String(item.ip || "未知").replace(/</g, "&lt;");
         const safeLoc = String(item.ipLocation || "未知").replace(/</g, "&lt;");
         const attachment = item.attachmentUrl
-          ? `<div class="mallow-attachment">附件：<a href="${String(item.attachmentUrl).replace(/"/g, "&quot;")}" target="_blank" rel="noopener noreferrer">${String(item.attachmentName || "下载附件").replace(/</g, "&lt;")}</a></div>`
+          ? `<div class="mallow-attachment">附件：<a href="${String(resolveRuntimePublicUrl(item.attachmentUrl)).replace(/"/g, "&quot;")}" target="_blank" rel="noopener noreferrer">${String(item.attachmentName || "下载附件").replace(/</g, "&lt;")}</a></div>`
           : "";
         return `
           <article class="news-item" data-id="${safeId}">
@@ -466,6 +488,7 @@ function setupArchiveCalendar(events, adminConfig, options = {}) {
   let exportBtn = null;
   let logoutBtn = null;
   let refreshBtn = null;
+  let autoRefreshBtn = null;
   if (showAdminChrome) {
     function mkBtn(id, label) {
       const b = document.createElement("button");
@@ -477,9 +500,10 @@ function setupArchiveCalendar(events, adminConfig, options = {}) {
     }
     editToggleBtn = mkBtn("calendar-edit-toggle", "开启编辑");
     refreshBtn = mkBtn("calendar-refresh-vod", "抓取最新录播");
+    autoRefreshBtn = mkBtn("calendar-auto-refresh-config", "自动抓取设置");
     exportBtn = mkBtn("calendar-export", "导出 JSON");
     logoutBtn = mkBtn("calendar-admin-logout", "退出管理");
-    toolbarRight.append(editToggleBtn, refreshBtn, exportBtn, logoutBtn);
+    toolbarRight.append(editToggleBtn, refreshBtn, autoRefreshBtn, exportBtn, logoutBtn);
     const adminHints = document.getElementById("archive-admin-hints");
     if (adminHints) adminHints.classList.remove("hidden");
   }
@@ -677,6 +701,71 @@ function setupArchiveCalendar(events, adminConfig, options = {}) {
       } finally {
         refreshBtn.disabled = false;
         refreshBtn.textContent = oldText;
+      }
+    });
+  }
+
+  if (autoRefreshBtn) {
+    const statusEl = document.getElementById("calendar-status");
+    autoRefreshBtn.addEventListener("click", async () => {
+      if (!isAdmin) return;
+      autoRefreshBtn.disabled = true;
+      const old = autoRefreshBtn.textContent;
+      autoRefreshBtn.textContent = "读取中...";
+      try {
+        const pass = (adminConfig && adminConfig.archiveEditPasscode) || "ljx960429?";
+        const cfgResp = await fetch("/api/admin/auto-refresh-config", {
+          headers: { "X-Admin-Passcode": pass },
+          cache: "no-store"
+        });
+        const cfgData = await cfgResp.json().catch(() => ({}));
+        if (!cfgResp.ok || !cfgData.ok) throw new Error(cfgData.message || `HTTP ${cfgResp.status}`);
+        const current = cfgData.config || {};
+
+        const enabled = window.confirm(
+          `自动抓取当前为：${current.enabled ? "开启" : "关闭"}。\n` +
+            "点“确定”=开启，点“取消”=关闭。"
+        );
+        const hourRaw = window.prompt("每天几点抓取（0-23）：", String(current.hour ?? 4));
+        if (hourRaw === null) return;
+        const minuteRaw = window.prompt("每天几分抓取（0-59）：", String(current.minute ?? 15));
+        if (minuteRaw === null) return;
+        const startupRun = window.confirm(
+          `服务启动即抓取当前为：${current.startupRun ? "开启" : "关闭"}。\n` +
+            "点“确定”=开启，点“取消”=关闭。"
+        );
+
+        const hour = Number(hourRaw);
+        const minute = Number(minuteRaw);
+        if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) {
+          throw new Error("时间格式不正确，请输入 0-23 点与 0-59 分");
+        }
+
+        const saveResp = await fetch("/api/admin/auto-refresh-config", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Passcode": pass
+          },
+          body: JSON.stringify({ enabled, hour, minute, startupRun })
+        });
+        const saveData = await saveResp.json().catch(() => ({}));
+        if (!saveResp.ok || !saveData.ok) throw new Error(saveData.message || `HTTP ${saveResp.status}`);
+        const nextCfg = saveData.config || {};
+        if (statusEl) {
+          statusEl.classList.remove("error-text");
+          statusEl.textContent =
+            `自动抓取设置已保存：${nextCfg.enabled ? "开启" : "关闭"}，` +
+            `每天 ${String(nextCfg.hour).padStart(2, "0")}:${String(nextCfg.minute).padStart(2, "0")}。`;
+        }
+      } catch (err) {
+        if (statusEl) {
+          statusEl.classList.add("error-text");
+          statusEl.textContent = `自动抓取设置失败：${err.message || "未知错误"}`;
+        }
+      } finally {
+        autoRefreshBtn.disabled = false;
+        autoRefreshBtn.textContent = old;
       }
     });
   }

@@ -3,8 +3,11 @@ import json
 import re
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 DEFAULT_HEADERS = {
@@ -35,12 +38,22 @@ def parse_live_meta_from_title(raw_title: str) -> tuple[str | None, str]:
     title = re.sub(r"\s+", " ", title).strip()
 
     # 形如：2026年04月01日16点场 / 2026年4月1日6点场
-    m = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日\d{1,2}点场", title)
+    m = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日(\d{1,2})点场", title)
     live_date = None
     if m:
-        yyyy, mm, dd = m.groups()
+        yyyy, mm, dd, hh = m.groups()
         live_date = f"{yyyy}-{int(mm):02d}-{int(dd):02d}"
-        title = title[: m.start()].strip()
+        time_label = f"{int(hh)}点场"
+        before = title[: m.start()].strip(" -|/_:：")
+        after = title[m.end():].strip(" -|/_:：")
+        if before and after:
+            title = f"{before} {time_label} {after}"
+        elif after:
+            title = f"{time_label} {after}"
+        elif before:
+            title = f"{before} {time_label}"
+        else:
+            title = time_label
 
     return live_date, title or raw_title or ""
 
@@ -115,6 +128,18 @@ def load_items(path: str) -> list[dict]:
     return data
 
 
+def ensure_vod_input(path: Path) -> None:
+    if path.exists():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    legacy = REPO_ROOT / "web" / "data" / "vod-input.json"
+    example = REPO_ROOT / "web" / "data" / "vod-input.example.json"
+    if legacy.exists():
+        path.write_text(legacy.read_text(encoding="utf-8"), encoding="utf-8")
+    elif example.exists():
+        path.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def save_events(path: str, events: list[dict]) -> int:
     valid = [e for e in events if e.get("date") and e.get("title") and e.get("url")]
     dedup: dict[str, dict] = {}
@@ -122,6 +147,8 @@ def save_events(path: str, events: list[dict]) -> int:
         key = event["url"].strip()
         dedup[key] = event
     events = sorted(dedup.values(), key=lambda x: x["date"])
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(events, f, ensure_ascii=False, indent=2)
         f.write("\n")
@@ -129,11 +156,16 @@ def save_events(path: str, events: list[dict]) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build web/data/vod-events.json from manual + bilibili sources.")
-    parser.add_argument("--input", default="web/data/vod-input.json")
-    parser.add_argument("--output", default="web/data/vod-events.json")
+    default_in = str(REPO_ROOT / "web" / "runtime-data" / "vod-input.json")
+    default_out = str(REPO_ROOT / "web" / "runtime-data" / "vod-events.json")
+    parser = argparse.ArgumentParser(
+        description="Build web/runtime-data/vod-events.json from manual + bilibili sources."
+    )
+    parser.add_argument("--input", default=default_in)
+    parser.add_argument("--output", default=default_out)
     args = parser.parse_args()
 
+    ensure_vod_input(Path(args.input))
     try:
         items = load_items(args.input)
     except Exception as err:

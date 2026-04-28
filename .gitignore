@@ -29,3 +29,10 @@ dist/
 # Runtime data (server-local, keep across deploy reset)
 web/runtime-data/*
 !web/runtime-data/.gitkeep
+
+# Legacy live copies under web/data (use *.example.json seeds + runtime-data)
+web/data/admin-config.json
+web/data/vod-events.json
+web/data/news-posts.json
+web/data/mallow-posts.json
+web/data/vod-input.json

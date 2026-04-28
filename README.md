@@ -47,28 +47,36 @@ python -m http.server 8000
 
 - 首页：`http://localhost:8000/web/`
 - 录播页：`http://localhost:8000/web/pages/archive.html`
-- 录播数据：`http://localhost:8000/web/data/vod-events.json`
+- 录播数据：`http://localhost:8000/web/runtime-data/vod-events.json`（首次克隆可运行 `python tools/seed_runtime_data.py` 从 `web/data/*.example.json` 生成 `web/runtime-data/` 下各文件）
 
 > 不支持 `file://` 直接双击打开页面（会导致录播 JSON 无法读取）。
 
+### 站点运行数据（`web/runtime-data/`）
+
+录播表、公告、棉花糖、管理员口令等**可变数据**统一放在 `web/runtime-data/`，由 `.gitignore` 忽略，避免服务器 `git pull` / `git reset --hard` 时把线上数据还原成仓库旧版本。仓库内仅保留 `web/data/*.example.json` 作为种子模板。
+
 ### 录播数据（两段式）
 
-1. **JSON 手动添加**：直接编辑 `web/data/vod-events.json`。  
-2. **自动解析生成**：编辑 `web/data/vod-input.json`，然后执行：
+1. **JSON 手动添加**：直接编辑 `web/runtime-data/vod-events.json`。  
+2. **自动解析生成**：编辑 `web/runtime-data/vod-input.json`，然后执行：
 
 ```bash
 python tools/build_vod_events.py
 ```
 
-生成结果会写回 `web/data/vod-events.json`（录播页直接读取这个文件）。
+生成结果会写回 `web/runtime-data/vod-events.json`（录播页优先读取该路径）。
 
 ### 录播页维护入口（轻量）
 
 - **访客界面**不展示登录、口令或「管理」相关控件；普通打开 `.../archive.html` 只能浏览日历。
 - **进入编辑**：在地址后加 `?manage=1` 访问同一页（例：`http://localhost:8000/web/pages/archive.html?manage=1`），按提示输入口令；成功后地址栏会自动去掉该参数，**当前标签页会话**内会出现「开启编辑」「导出 JSON」「退出管理」。
-- 口令配置：`web/data/admin-config.json` 的 `archiveEditPasscode`。
+- 口令配置：服务器上 `web/runtime-data/admin-config.json` 的 `archiveEditPasscode`（可参考 `web/data/admin-config.example.json`）。
 - 仍为前端口令，仅防误操作；关闭标签页或点「退出管理」后需再次使用 `?manage=1`。
 - 管理会话下可点「抓取最新录播」：会调用服务器 `/api/admin/refresh-vod`，在服务器执行 `python3 tools/build_vod_events.py` 并刷新日历数据。
+- 已内置「每日自动抓取」：`tools/admin_api.py` 启动后会按服务器本机时间每天执行一次录播刷新，默认时间 `04:15`。可用环境变量调整：
+  - `TZ_VOD_AUTO_REFRESH_ENABLED=0` 关闭自动抓取
+  - `TZ_VOD_AUTO_REFRESH_HOUR=6` 与 `TZ_VOD_AUTO_REFRESH_MINUTE=30` 改为每天 `06:30`
+  - `TZ_VOD_AUTO_REFRESH_STARTUP_RUN=1` 服务启动后先立即抓取一次
 
 ## 文档维护约定
 

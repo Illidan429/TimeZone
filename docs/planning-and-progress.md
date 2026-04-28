@@ -54,4 +54,5 @@
 
 - 响应式优化：首页新增直播状态卡片布局适配；录播页工具栏按钮在窄屏改为可换行并提升可点击性，改善窗口缩放后的可读性与操作体验。
 - 首页直播状态：新增 `/api/live/status`（由 `tools/admin_api.py` 代理查询 B 站直播状态），首页实时显示「正在直播/未开播」并提供直达直播间链接。
-- 开发日记页新增管理员模式：通过 `?manage=1` 进入后可在页面内新增日记并调用 `/api/admin/news-posts` 保存到 `web/data/news-posts.json`，普通访客仍仅可浏览。
+- 开发日记页新增管理员模式：通过 `?manage=1` 进入后可在页面内新增日记并调用 `/api/admin/news-posts` 保存到 `web/runtime-data/news-posts.json`，普通访客仍仅可浏览。
+- 站点运行数据统一至 `web/runtime-data/`（`.gitignore`），避免 `git pull` / `git reset --hard` 覆盖线上数据；仓库内以 `web/data/*.example.json` 为种子，可运行 `python tools/seed_runtime_data.py` 生成初始文件。

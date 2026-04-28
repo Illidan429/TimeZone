@@ -27,10 +27,10 @@
       </div>
       <div class="vod-calendar" id="vod-calendar" aria-label="录播日历"></div>
 
-      <p class="hint">维护说明：可直接编辑 `web/data/vod-events.json`，或编辑 `web/data/vod-input.json` 后运行 `python tools/build_vod_events.py` 自动生成。</p>
+      <p class="hint">维护说明：录播与口令等运行数据在 <code>web/runtime-data/</code>（不入库，避免部署时被 Git 覆盖）。可编辑 <code>web/runtime-data/vod-events.json</code>，或编辑 <code>web/runtime-data/vod-input.json</code> 后运行 <code>python tools/build_vod_events.py</code> 自动生成。</p>
       <div id="archive-admin-hints" class="hidden">
         <p class="hint">可视化编辑：开启编辑后，双击已有条目可改标题和链接；双击某一天空白处可新增条目；点击「导出 JSON」下载最新数据。</p>
-        <p class="hint">口令在仓库内 <code>web/data/admin-config.json</code> 的 <code>archiveEditPasscode</code>（轻量前端防护，非强安全）。</p>
+        <p class="hint">口令在服务器 <code>web/runtime-data/admin-config.json</code> 的 <code>archiveEditPasscode</code>（仓库内仅有 <code>web/data/admin-config.example.json</code> 作模板；轻量前端防护，非强安全）。</p>
       </div>
       <p class="hint" id="calendar-status" aria-live="polite">正在载入录播数据...</p>
       <a class="back-link" href="../index.html">返回首页</a>
